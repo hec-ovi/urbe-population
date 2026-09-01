@@ -1,32 +1,17 @@
 /**
  * WorldModel: indexes blueprint, networks and interiors into the structures
- * the population, crowd and instancing layers read. Built once per simulation.
+ * the population, crowd and instancing layers read. Built once per
+ * simulation over the calibrated housing groups (population/housing.ts).
  */
 
 import { polygonArea, polylineLength, midpoint, pointInPolygon, dist2 } from './geo.js';
 import { AttractionField } from './attraction.js';
-import { hash01 } from '../core/rng.js';
 import { staffWorkplace, type WorkplaceStaffing } from '../population/jobs.js';
-import { UNIT_AREA_BY_TIER } from '../population/defaults.js';
 import type { ResolvedParams } from '../population/defaults.js';
+import type { Group } from '../population/housing.js';
 import type { CityBlueprint, District, Parcel, Vec2, WealthTier } from '../schemas/blueprint.js';
 import type { Networks } from '../schemas/networks.js';
 import type { NpcSupport } from '../schemas/interiors.js';
-
-export interface ResidentialBlock {
-  parcelId: string;
-  units: number;
-  unitOffset: number;
-}
-
-/** Residential parcels of one district and tier: the demographic grouping unit. */
-export interface Group {
-  index: number;
-  districtId: string;
-  tier: WealthTier;
-  blocks: ResidentialBlock[];
-  totalUnits: number;
-}
 
 export interface Workplace {
   parcelId: string;
@@ -56,12 +41,12 @@ export interface ServiceRoute {
 export interface CrowdEdge {
   id: string;
   districtId: string;
+  path: Vec2[];
   lengthM: number;
   /** Share of the district's street presence this edge draws: length times land-use pull. */
   weight: number;
 }
 
-const TIER_ORDER: WealthTier[] = ['poor', 'mid', 'rich', 'high_rich'];
 const BUS_M_PER_MIN = 333;
 const RAIL_M_PER_MIN = 666;
 
@@ -69,7 +54,7 @@ export class WorldModel {
   readonly districts: District[];
   readonly districtsById = new Map<string, District>();
   readonly parcelsById = new Map<string, Parcel>();
-  readonly groups: Group[] = [];
+  readonly groups: Group[];
   readonly workplaces: Workplace[] = [];
   readonly workplacesByParcel = new Map<string, Workplace>();
   readonly totalJobSlots: number;
@@ -84,6 +69,7 @@ export class WorldModel {
     readonly blueprint: CityBlueprint,
     networks: Networks | undefined,
     params: ResolvedParams,
+    groups: Group[],
     interiors?: Record<string, NpcSupport>,
   ) {
     this.districts = [...blueprint.districts].sort((a, b) => (a.id < b.id ? -1 : 1));
@@ -91,34 +77,12 @@ export class WorldModel {
     const parcels = [...blueprint.parcels].sort((a, b) => (a.id < b.id ? -1 : 1));
     for (const p of parcels) this.parcelsById.set(p.id, p);
     this.interiors = new Map(Object.entries(interiors ?? {}));
+    this.groups = groups;
 
-    this.buildGroups(parcels);
     this.totalJobSlots = this.buildWorkplaces(parcels);
     if (networks && networks.transit.routes.length > 0) this.buildTransitFromNetworks(networks);
     else this.buildTransitFallback(params.defaultHeadwayMin);
     this.buildCrowdEdges(networks);
-  }
-
-  private buildGroups(parcels: Parcel[]): void {
-    for (const district of this.districts) {
-      for (const tier of TIER_ORDER) {
-        const blocks: ResidentialBlock[] = [];
-        let offset = 0;
-        for (const p of parcels) {
-          if (p.districtId !== district.id || p.type !== 'residential' || p.tier !== tier) continue;
-          const floors =
-            p.envelope.minFloors +
-            Math.floor(hash01(this.seed, 'floors', p.id) * (p.envelope.maxFloors - p.envelope.minFloors + 1));
-          const perFloor = Math.max(1, Math.floor(polygonArea(p.footprint) / UNIT_AREA_BY_TIER[tier]));
-          const units = floors * perFloor;
-          blocks.push({ parcelId: p.id, units, unitOffset: offset });
-          offset += units;
-        }
-        if (blocks.length > 0) {
-          this.groups.push({ index: this.groups.length, districtId: district.id, tier, blocks, totalUnits: offset });
-        }
-      }
-    }
   }
 
   private buildWorkplaces(parcels: Parcel[]): number {
@@ -207,7 +171,7 @@ export class WorldModel {
     const pull = new AttractionField(this.blueprint.parcels);
     const add = (id: string, districtId: string, path: Vec2[]): void => {
       const lengthM = polylineLength(path);
-      this.crowdEdges.push({ id, districtId, lengthM, weight: lengthM * pull.along(path) });
+      this.crowdEdges.push({ id, districtId, path, lengthM, weight: lengthM * pull.along(path) });
     };
     if (networks && networks.walk.edges.length > 0) {
       for (const e of networks.walk.edges) {

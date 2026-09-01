@@ -1,10 +1,12 @@
 /**
- * Cheap crowd layer: closed-form typed counts per scope and time, plus a
- * deterministic capped sample of pseudo-agents for every scope kind, each
- * carrying an instantiation handle. Query cost is independent of population
- * and of edge count when sampling is off (maxAgents 0). District group tables
- * are memoized per timestamp and per-edge counts use a string-free hash, so
- * the sampled path stays flat on large cities.
+ * Cheap crowd layer: closed-form typed counts per scope and time, plus
+ * pseudo-agents carrying instantiation handles. City, district, edge, stop
+ * and parcel scopes hand back a deterministic sample capped by maxAgents; a
+ * radius scope hands back every street and stop agent inside its circle.
+ * Query cost is independent of population and of edge count when sampling is
+ * off (maxAgents 0). District group tables are memoized per timestamp,
+ * per-edge counts use a string-free hash and a grid indexes edges by
+ * position, so the sampled and radius paths stay flat on large cities.
  * Who is outside and when comes from presence.ts; where they are comes from
  * land-use pull: workers show up around their workplace, errand and leisure
  * trips land in the districts and on the streets that draw people, and the
@@ -14,6 +16,8 @@
 import { hash01, mix01, rand, streamKey } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftCoversTime } from '../population/jobs.js';
+import { dist2, pointAlong } from '../world/geo.js';
+import { EdgeGrid } from './edge-grid.js';
 import { edgeHandle, parcelHandle, parseHandle } from './handles.js';
 import {
   COMMUTE_WEEKDAY,
@@ -26,13 +30,18 @@ import {
   WEEKEND_LOCAL_FACTOR,
   curveAt,
 } from './presence.js';
+import { adultId } from '../instancing/ids.js';
 import { SimulationError } from '../schemas/errors.js';
 import type { AssignmentModel } from '../population/assignment.js';
-import type { WorldModel, CrowdEdge } from '../world/model.js';
+import type { GenderResolver } from '../instancing/gender.js';
+import type { WorldModel, CrowdEdge, Workplace } from '../world/model.js';
 import type { ResolvedParams } from '../population/defaults.js';
 import type { NPCTypeSet, NPCCategory } from '../schemas/npc-types.js';
 import type { PopulationStats } from '../schemas/population.js';
+import type { Vec2 } from '../schemas/blueprint.js';
 import type { Activity, CrowdAgent, CrowdGroup, CrowdOpts, CrowdScope, CrowdSlice } from '../schemas/crowd.js';
+
+type RadiusScope = Extract<CrowdScope, { kind: 'radius' }>;
 
 interface DistrictCrowdBase {
   districtId: string;
@@ -61,6 +70,7 @@ export class CrowdModel {
   private readonly districts = new Map<string, DistrictCrowdBase>();
   private readonly categoryByType = new Map<string, NPCCategory>();
   private readonly edgeIndex = new Map<string, number>();
+  private readonly grid: EdgeGrid;
   private readonly groupsCache = new Map<string, DistrictGroups>();
   private readonly fastKey: number;
   /** City-wide pools that move to where the pull is, not where they sleep. */
@@ -74,10 +84,12 @@ export class CrowdModel {
     typeSet: NPCTypeSet,
     private readonly params: ResolvedParams,
     private readonly assignment: AssignmentModel,
+    private readonly genders: GenderResolver,
   ) {
     this.fastKey = streamKey(seed, 'crowd');
     for (const t of typeSet.types) this.categoryByType.set(t.type, t.category);
     world.crowdEdges.forEach((e, i) => this.edgeIndex.set(e.id, i));
+    this.grid = new EdgeGrid(world.crowdEdges);
     let cityPull = 0;
     for (const d of stats.perDistrict) {
       const residentTypes: Record<string, number> = {};
@@ -133,7 +145,9 @@ export class CrowdModel {
 
   crowd(timeMin: number, scope: CrowdScope, opts?: CrowdOpts): CrowdSlice {
     if (!Number.isFinite(timeMin) || timeMin < 0) throw new SimulationError('E_TIME', `invalid time ${timeMin}`);
+    if (scope.kind === 'radius') return this.radius(timeMin, scope);
     const maxAgents = opts?.maxAgents ?? DEFAULT_MAX_AGENTS;
+    const id = scope.id ?? '';
     switch (scope.kind) {
       case 'city': {
         const merged = new Map<string, CrowdGroup>();
@@ -141,57 +155,35 @@ export class CrowdModel {
         return { timeMin, scope, groups: [...merged.values()], agents: this.edgeSample(this.world.crowdEdges, timeMin, maxAgents) };
       }
       case 'district': {
-        const base = this.districts.get(scope.id ?? '');
-        if (!base) throw new SimulationError('E_UNKNOWN_ID', `no district ${scope.id}`);
+        const base = this.districts.get(id);
+        if (!base) throw new SimulationError('E_UNKNOWN_ID', `no district ${id}`);
         const { groups } = this.districtGroupsAt(base, timeMin);
         return { timeMin, scope, groups, agents: this.edgeSample(base.edges, timeMin, maxAgents) };
       }
       case 'edge': {
-        const edge = this.edgeById(scope.id ?? '');
-        if (!edge) throw new SimulationError('E_UNKNOWN_ID', `no walk edge ${scope.id}`);
+        const edge = this.edgeById(id);
+        if (!edge) throw new SimulationError('E_UNKNOWN_ID', `no walk edge ${id}`);
         return { timeMin, scope, groups: this.edgeGroups(edge, timeMin), agents: this.edgeSample([edge], timeMin, maxAgents) };
       }
       case 'stop': {
-        const stop = this.world.stopsById.get(scope.id ?? '');
-        if (!stop) throw new SimulationError('E_UNKNOWN_ID', `no stop ${scope.id}`);
-        const groups = this.stopGroups(scope.id!, timeMin);
+        if (!this.world.stopsById.has(id)) throw new SimulationError('E_UNKNOWN_ID', `no stop ${id}`);
+        const groups = this.stopGroups(id, timeMin);
         const total = groups.reduce((s, g) => s + g.count, 0);
         const agents: CrowdAgent[] = [];
         const epoch = Math.floor(timeMin / STOP_PERIOD_MIN);
-        for (let slot = 0; slot < Math.min(total, maxAgents); slot++) {
-          agents.push(this.stopAgent(scope.id!, slot, epoch, groups));
-        }
+        for (let slot = 0; slot < Math.min(total, maxAgents); slot++) agents.push(this.stopAgent(id, slot, epoch, groups));
         return { timeMin, scope, groups, agents };
       }
       case 'parcel': {
-        const wp = this.world.workplacesByParcel.get(scope.id ?? '');
-        if (!wp && !this.world.parcelsById.has(scope.id ?? '')) {
-          throw new SimulationError('E_UNKNOWN_ID', `no parcel ${scope.id}`);
-        }
+        const wp = this.world.workplacesByParcel.get(id);
+        if (!wp && !this.world.parcelsById.has(id)) throw new SimulationError('E_UNKNOWN_ID', `no parcel ${id}`);
         const groups = new Map<string, CrowdGroup>();
         const agents: CrowdAgent[] = [];
-        if (wp) {
-          for (let local = 0; local < wp.staffing.slotCount; local++) {
-            const globalSlot = wp.slotOffset + local;
-            const adultIdx = this.assignment.adultOfSlot(globalSlot);
-            if (adultIdx === undefined) continue;
-            if (!shiftCoversTime(this.assignment.jobOfSlot(globalSlot).shift, timeMin)) continue;
-            const type = this.assignment.typeOfAdult(adultIdx).type;
-            const key = `${type}:working`;
-            const cur = groups.get(key);
-            if (cur) cur.count += 1;
-            else groups.set(key, { type, activity: 'working', count: 1 });
-            if (agents.length < maxAgents) {
-              agents.push({
-                crowdId: parcelHandle(wp.parcelId, local),
-                type,
-                activity: 'working',
-                place: { kind: 'parcel', id: wp.parcelId },
-                progress: 0,
-                direction: 1,
-              });
-            }
-          }
+        for (let local = 0; wp && local < wp.staffing.slotCount; local++) {
+          const agent = this.parcelAgent(wp, local, timeMin);
+          if (!agent) continue;
+          tally(groups, agent.type, agent.activity, 1);
+          if (agents.length < maxAgents) agents.push(agent);
         }
         return { timeMin, scope, groups: [...groups.values()], agents };
       }
@@ -221,18 +213,41 @@ export class CrowdModel {
     }
     const wp = this.world.workplacesByParcel.get(h.id);
     if (!wp || h.slot >= wp.staffing.slotCount) return undefined;
-    const globalSlot = wp.slotOffset + h.slot;
-    const adultIdx = this.assignment.adultOfSlot(globalSlot);
-    if (adultIdx === undefined) return undefined;
-    if (!shiftCoversTime(this.assignment.jobOfSlot(globalSlot).shift, timeMin)) return undefined;
-    return {
-      crowdId,
-      type: this.assignment.typeOfAdult(adultIdx).type,
-      activity: 'working',
-      place: { kind: 'parcel', id: h.id },
-      progress: 0,
-      direction: 1,
-    };
+    return this.parcelAgent(wp, h.slot, timeMin);
+  }
+
+  /** Every street and stop agent inside the circle: what a player standing at [x, z] sees. */
+  private radius(timeMin: number, scope: RadiusScope): CrowdSlice {
+    if (!Number.isFinite(scope.x) || !Number.isFinite(scope.z)) {
+      throw new SimulationError('E_INVALID_INPUT', 'scope.x, scope.z: must be finite', { field: 'scope.x' });
+    }
+    if (!Number.isFinite(scope.metres) || !(scope.metres > 0)) {
+      throw new SimulationError('E_INVALID_INPUT', 'scope.metres: must be > 0', { field: 'scope.metres' });
+    }
+    const centre: Vec2 = [scope.x, scope.z];
+    const r2 = scope.metres * scope.metres;
+    const agents: CrowdAgent[] = [];
+    for (const edge of this.grid.near(scope.x, scope.z, scope.metres)) {
+      const base = this.districts.get(edge.districtId);
+      if (!base) continue;
+      const dg = this.districtGroupsAt(base, timeMin);
+      const count = this.edgeCount(edge, base, dg.total, timeMin);
+      const epoch = Math.floor(timeMin / this.edgePeriod(edge));
+      for (let slot = 0; slot < count; slot++) {
+        const agent = this.edgeAgent(edge, slot, epoch, timeMin, dg.groups);
+        if (dist2(pointAlong(edge.path, agent.progress), centre) <= r2) agents.push(agent);
+      }
+    }
+    const epoch = Math.floor(timeMin / STOP_PERIOD_MIN);
+    for (const stop of this.world.stops) {
+      if (dist2(stop.position, centre) > r2) continue;
+      const groups = this.stopGroups(stop.id, timeMin);
+      const total = groups.reduce((s, g) => s + g.count, 0);
+      for (let slot = 0; slot < total; slot++) agents.push(this.stopAgent(stop.id, slot, epoch, groups));
+    }
+    const groups = new Map<string, CrowdGroup>();
+    for (const agent of agents) tally(groups, agent.type, agent.activity, 1);
+    return { timeMin, scope, groups: [...groups.values()], agents };
   }
 
   private edgeById(id: string): CrowdEdge | undefined {
@@ -288,13 +303,15 @@ export class CrowdModel {
     const r = rand(this.seed, 'agent', crowdId);
     const g = groups[r.weighted(groups.map((x) => x.count))]!;
     const phase = r.next();
+    const direction = r.next() < 0.5 ? 1 : -1;
     return {
       crowdId,
       type: g.type,
+      gender: this.genders.draw(r),
       activity: g.activity,
       place: { kind: 'edge', id: edge.id },
       progress: (timeMin / this.edgePeriod(edge) + phase) % 1,
-      direction: r.next() < 0.5 ? 1 : -1,
+      direction,
     };
   }
 
@@ -343,8 +360,26 @@ export class CrowdModel {
     return {
       crowdId,
       type: g.type,
+      gender: this.genders.draw(r),
       activity: 'transit_wait',
       place: { kind: 'stop', id: stopId },
+      progress: 0,
+      direction: 1,
+    };
+  }
+
+  /** The worker filling a parcel's local slot at a time; undefined when the slot is empty or off shift. */
+  private parcelAgent(wp: Workplace, local: number, timeMin: number): CrowdAgent | undefined {
+    const globalSlot = wp.slotOffset + local;
+    const adultIdx = this.assignment.adultOfSlot(globalSlot);
+    if (adultIdx === undefined) return undefined;
+    if (!shiftCoversTime(this.assignment.jobOfSlot(globalSlot).shift, timeMin)) return undefined;
+    return {
+      crowdId: parcelHandle(wp.parcelId, local),
+      type: this.assignment.typeOfAdult(adultIdx).type,
+      gender: this.genders.of(adultId(adultIdx)),
+      activity: 'working',
+      place: { kind: 'parcel', id: wp.parcelId },
       progress: 0,
       direction: 1,
     };
@@ -370,11 +405,7 @@ export class CrowdModel {
       const whole = Math.floor(raw);
       const extra = hash01(this.seed, 'round', base.districtId, type, activity, Math.floor(timeMin / 60)) < raw - whole ? 1 : 0;
       const n = whole + extra;
-      if (n <= 0) return;
-      const key = `${type}:${activity}`;
-      const cur = groups.get(key);
-      if (cur) cur.count += n;
-      else groups.set(key, { type, activity, count: n });
+      if (n > 0) tally(groups, type, activity, n);
     };
 
     const commute = curveAt(weekend ? COMMUTE_WEEKEND : COMMUTE_WEEKDAY, m);
@@ -398,11 +429,13 @@ function addAll(target: Record<string, number>, source: Record<string, number>):
   for (const [type, n] of Object.entries(source)) target[type] = (target[type] ?? 0) + n;
 }
 
+function tally(target: Map<string, CrowdGroup>, type: string, activity: Activity, n: number): void {
+  const key = `${type}:${activity}`;
+  const cur = target.get(key);
+  if (cur) cur.count += n;
+  else target.set(key, { type, activity, count: n });
+}
+
 function mergeInto(target: Map<string, CrowdGroup>, groups: CrowdGroup[]): void {
-  for (const g of groups) {
-    const key = `${g.type}:${g.activity}`;
-    const cur = target.get(key);
-    if (cur) cur.count += g.count;
-    else target.set(key, { type: g.type, activity: g.activity, count: g.count });
-  }
+  for (const g of groups) tally(target, g.type, g.activity, g.count);
 }

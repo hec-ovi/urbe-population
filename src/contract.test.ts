@@ -79,6 +79,17 @@ describe('population statistics', () => {
     for (const d of stats.perDistrict) districtPop += d.population;
     expect(districtPop).toBe(stats.population);
   });
+
+  it('calibrates residents to the blueprint population and publishes the factor', () => {
+    const estimate = make().populationStats();
+    expect(estimate.calibrationFactor).toBe(1);
+    const target = Math.round(estimate.population * 2.5);
+    const promised = { ...FIXTURE_BLUEPRINT, stats: { ...FIXTURE_BLUEPRINT.stats, population: target } };
+    const stats = createSimulation({ ...makeInput(), blueprint: promised }).populationStats();
+    expect(Math.abs(stats.population - target) / target).toBeLessThanOrEqual(0.03);
+    expect(stats.calibrationFactor).toBeGreaterThan(1);
+    expect(stats.perDistrict.reduce((s, d) => s + d.population, 0)).toBe(stats.population);
+  });
 });
 
 describe('crowd layer', () => {
@@ -136,6 +147,23 @@ describe('crowd layer', () => {
     expect(worker.job!.parcelId).toBe('p_cafe');
     const again = sim.instantiate({ crowdId: parcel.agents[0]!.crowdId, timeMin: MON_9 });
     expect(again.npcId).toBe(worker.npcId);
+  });
+
+  it('a radius scope returns every person inside the circle, uncapped, with instantiable handles', () => {
+    const busy = createSimulation({ ...makeInput(), params: { streetDensity: 20 } });
+    const centre = { x: 750, z: 250 };
+    const slice = busy.crowd(MON_NOON, { kind: 'radius', ...centre, metres: 120 });
+    expect(slice.agents.length).toBeGreaterThan(64);
+    expect(slice.agents.length).toBe(slice.groups.reduce((s, g) => s + g.count, 0));
+    for (const agent of slice.agents) {
+      const at = agent.place.kind === 'stop' ? stopPosition(agent.place.id) : alongEdge(agent.place.id, agent.progress);
+      expect(Math.hypot(at[0] - centre.x, at[1] - centre.z)).toBeLessThanOrEqual(120);
+    }
+    const inner = busy.crowd(MON_NOON, { kind: 'radius', ...centre, metres: 30 });
+    expect(inner.agents.length).toBeLessThan(slice.agents.length);
+    const walker = busy.instantiate({ crowdId: slice.agents[0]!.crowdId, timeMin: MON_NOON });
+    expect(walker.type).toBe(slice.agents[0]!.type);
+    expect(code(() => busy.crowd(MON_NOON, { kind: 'radius', ...centre, metres: 0 }))).toBe('E_INVALID_INPUT');
   });
 
   it('a parcel scope reports on-duty workers', () => {
@@ -251,6 +279,17 @@ describe('lazy instantiation', () => {
   });
 });
 
+/** Fixture streets are straight segments, so a walker's position is linear in progress. */
+function alongEdge(edgeId: string, progress: number): [number, number] {
+  const path = FIXTURE_BLUEPRINT.streets.edges.find((e) => e.id === edgeId)!.path;
+  const [a, b] = [path[0]!, path[path.length - 1]!];
+  return [a[0] + (b[0] - a[0]) * progress, a[1] + (b[1] - a[1]) * progress];
+}
+
+function stopPosition(stopId: string): [number, number] {
+  return FIXTURE_BLUEPRINT.transit.busStops.find((s) => s.id === stopId)!.position;
+}
+
 /** Instances taken in a fixed order, enough of them to see both genders. */
 function sample(sim: CitySimulation, n = 40): NPCInstance[] {
   const out: NPCInstance[] = [];
@@ -286,6 +325,21 @@ describe('gender', () => {
     const vendor = a.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
     const restored = restoreSimulation(makeInput(), a.serialize());
     expect(restored.getNPC(vendor.npcId).gender).toBe(vendor.gender);
+  });
+
+  it('crowd agents carry the gender their handle resolves to', () => {
+    const sim = make();
+    const agents = [
+      ...sim.crowd(MON_NOON, { kind: 'city' }, { maxAgents: 12 }).agents,
+      ...sim.crowd(MON_9, { kind: 'parcel', id: 'p_corpo' }, { maxAgents: 12 }).agents,
+    ];
+    const seen = new Set<string>();
+    for (const agent of agents) {
+      seen.add(agent.gender);
+      const timeMin = agent.place.kind === 'parcel' ? MON_9 : MON_NOON;
+      expect(sim.instantiate({ crowdId: agent.crowdId, timeMin }).gender).toBe(agent.gender);
+    }
+    expect(seen).toEqual(new Set(['male', 'female']));
   });
 
   it('params.femaleShare steers the mix', () => {

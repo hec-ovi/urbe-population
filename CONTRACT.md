@@ -2,7 +2,7 @@
 
 Purpose: statistical NPC population with lazy instantiation: crowds run cheap by type, a specific NPC gets a full deterministic life (home, job, family, routine, name) only on interaction, and stays persistent from then on.
 
-Status: v0.4.1 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
+Status: v0.5.0 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Time: integer minutes since world epoch (Monday 00:00). Day = floor(t / 1440) % 7, 0 = Monday; minute of day = t % 1440. Routines repeat weekly.
@@ -21,8 +21,8 @@ Status: v0.4.1 implemented and tested. Statistical defaults documented in docs/R
 - `params?`: [src/schemas/params.ts](src/schemas/params.ts): statistical overrides, all defaulted from research.
 
 ## Out (CitySimulation)
-- `populationStats(): PopulationStats` ([src/schemas/population.ts](src/schemas/population.ts)): residents, households, employment and NPC type counts per district and tier. Consumed by naming.
-- `crowd(timeMin, scope, opts?): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): groups carry exact typed counts; agents are a deterministic sample for every scope kind (city, district, edge, stop, parcel), capped by `opts.maxAgents` (default 64). Every agent's crowdId is stable for its trip and is an instantiation handle; parcel agents are the on-duty workers, so their handles resolve to those exact NPCs. Street presence follows the researched share of the population in public space by hour (docs/RESEARCH.md), scaled by `params.streetDensity`, and concentrates on the streets whose land use pulls it.
+- `populationStats(): PopulationStats` ([src/schemas/population.ts](src/schemas/population.ts)): residents, households, employment and NPC type counts per district and tier, plus the `calibrationFactor` that made residents match the blueprint (invariants). Consumed by naming.
+- `crowd(timeMin, scope, opts?): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): groups carry exact typed counts. City, district, edge, stop and parcel scopes return a deterministic agent sample capped by `opts.maxAgents` (default 64); a radius scope `{ kind: 'radius', x, z, metres }` returns every street and stop agent inside the circle, never capped, so the engine asks for exactly what it renders (indoor staff stay on parcel scopes). Every agent's crowdId is stable for its trip and is an instantiation handle, and every agent carries the `gender` its handle resolves to; parcel agents are the on-duty workers, so their handles resolve to those exact NPCs. Street presence follows the researched share of the population in public space by hour (docs/RESEARCH.md), scaled by `params.streetDensity`, and concentrates on the streets whose land use pulls it.
 - `instantiate(handle): NPCInstance` ([src/schemas/npc.ts](src/schemas/npc.ts)): handle is `{ crowdId, timeMin }`, `{ npcId }` (family stubs carry npcIds) or a VendorQuery. Assigns the full life, conditioned on everything already instantiated; persistent from then on.
 - `getNPC(npcId): NPCInstance`: instanced NPCs only.
 - `getNPCVendor(query: VendorQuery): NPCInstance`: the on-duty worker for a place, type or role at a time; instantiates if needed. Quest layer entry point.
@@ -35,7 +35,7 @@ Status: v0.4.1 implemented and tested. Statistical defaults documented in docs/R
 
 ## Errors
 Closed set, thrown as `SimulationError { code, message, details? }` ([src/schemas/errors.ts](src/schemas/errors.ts)):
-- `E_INVALID_INPUT`: input fails validation; message names the field.
+- `E_INVALID_INPUT`: input or a radius scope fails validation; message names the field.
 - `E_UNKNOWN_ID`: npc, parcel, district, edge, stop or line id not found.
 - `E_STALE_HANDLE`: crowdId not alive at the given time.
 - `E_NO_MATCH`: no NPC can satisfy the query or reservation.
@@ -45,9 +45,10 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 
 ## Invariants
 - Same seed and inputs: identical populationStats and crowd for any query order.
+- Calibration: the blueprint's `stats.population` is the world's truth. Residents match it within 3 percent by scaling the housing stock estimated from residential floor area (units per parcel) by one factor, published as `calibrationFactor`; occupancy stays at `params.occupancyRate`. The factor is 1 when the blueprint carries no figure (0) or the estimate already agrees; a stock too coarse to land inside the band gets the closest achievable count.
 - Every blueprint district appears in populationStats.perDistrict and is a valid crowd scope, residents or not; districts without residents still carry their working population in crowds.
 - Same seed and same interaction order: identical instanced population.
-- Gender: every instance carries `male` or `female`, fixed for an npc id whether the person is instanced or still a family stub. Singles, lone parents, roommates and kids draw individually against `params.femaleShare` (default 0.51). A couple is one draw per household instead: mixed-gender unless the household falls in `params.sameGenderCoupleShare` (default 0.03, the city rate in docs/RESEARCH.md), so the pair reads the same whichever partner is instantiated first. Paired adults come out near 50/50 by construction, so the whole-population female share sits a few tenths below `femaleShare`. The given name comes from that gender's bucket, falling back to `neutral` and then to the whole pool when a bucket is empty, so a generated name and its gender always agree wherever the pool tags them.
+- Gender: every instance carries `male` or `female`, fixed for an npc id whether the person is instanced or still a family stub. Singles, lone parents, roommates and kids draw individually against `params.femaleShare` (default 0.51). A couple is one draw per household instead: mixed-gender unless the household falls in `params.sameGenderCoupleShare` (default 0.03, the city rate in docs/RESEARCH.md), so the pair reads the same whichever partner is instantiated first. Paired adults come out near 50/50 by construction, so the whole-population female share sits a few tenths below `femaleShare`. The given name comes from that gender's bucket, falling back to `neutral` and then to the whole pool when a bucket is empty, so a generated name and its gender always agree wherever the pool tags them. A crowd agent carries the same gender: parcel agents read their worker's, street and stop agents draw it from their own stream and instantiate only into a person of that type and gender.
 - Conservation: instanced NPCs never contradict aggregate stats; an assigned home unit, job slot or crowd identity is never reassigned; an instance never changes identity, home or family except through applyFlag.
 - Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs.
 - Staffing is a rota: posts (people on duty at once) x waves (shifts tiling the open span) x day crews (five days each, no overlap). An open place is staffed and vendor-queryable at every minute of its opening hours on every day it opens, with the same headcount on a Sunday as on a Tuesday, and empty when closed. Interior role [min, max] counts set the posts; 24/7 places get three waves plus security; night-only places staff night shifts; every staffed job maps to an employed resident with a commute.

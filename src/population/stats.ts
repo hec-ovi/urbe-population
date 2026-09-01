@@ -8,7 +8,12 @@ import type { AssignmentModel } from './assignment.js';
 import type { WorldModel } from '../world/model.js';
 import type { DistrictPopulation, PopulationStats, TierPopulation } from '../schemas/population.js';
 
-export function buildStats(world: WorldModel, demo: Demographics, assignment: AssignmentModel): PopulationStats {
+export function buildStats(
+  world: WorldModel,
+  demo: Demographics,
+  assignment: AssignmentModel,
+  calibrationFactor: number,
+): PopulationStats {
   const perDistrict = new Map<string, DistrictPopulation>();
   const cityTypes: Record<string, number> = {};
   let employed = 0;
@@ -50,6 +55,7 @@ export function buildStats(world: WorldModel, demo: Demographics, assignment: As
     employed,
     unemployed: demo.totalAdults - employed,
     typeCounts: cityTypes,
+    calibrationFactor,
     perDistrict: [...perDistrict.values()],
   };
 }

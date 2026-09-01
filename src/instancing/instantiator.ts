@@ -8,23 +8,21 @@ import { rand } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftCoversTime } from '../population/jobs.js';
 import { parseHandle } from '../crowd/handles.js';
-import { pickCoupleGender, pickGender } from './gender.js';
+import { adultId, kidId, parseAdultId, parseKidId } from './ids.js';
 import { pickName } from './names.js';
 import { inferGender, type ResolvedPool } from './name-pool.js';
 import { RoutineBuilder } from './routine.js';
 import { SimulationError } from '../schemas/errors.js';
-import type { Demographics, HouseholdForm } from '../population/demographics.js';
+import type { Demographics } from '../population/demographics.js';
 import type { AssignmentModel, JobAssignment } from '../population/assignment.js';
-import type { ResolvedParams } from '../population/defaults.js';
+import type { GenderResolver } from './gender.js';
 import type { Registry } from './registry.js';
 import type { WorldModel, Workplace } from '../world/model.js';
 import type { FamilyMember, Gender, NPCInstance, NPCName, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 import type { CrowdAgent } from '../schemas/crowd.js';
 
-const ADULT_ID = /^a(\d+)$/;
-const COUPLE_FORMS = new Set<HouseholdForm>(['couple', 'coupleKids']);
-const ALIBI_ATTEMPTS = 128;
-const ALIBI_STRICT_ATTEMPTS = 64;
+const ALIBI_ATTEMPTS = 256;
+const ALIBI_STRICT_ATTEMPTS = 128;
 const RESERVE_ATTEMPTS = 512;
 const OUTDOOR_ACTIVITIES = new Set(['commuting', 'leisure', 'shopping', 'transit_wait']);
 
@@ -36,9 +34,9 @@ export class Instantiator {
     private readonly world: WorldModel,
     private readonly demo: Demographics,
     private readonly assignment: AssignmentModel,
-    private readonly params: ResolvedParams,
     private readonly pool: ResolvedPool,
     private readonly registry: Registry,
+    private readonly genders: GenderResolver,
   ) {
     this.routines = new RoutineBuilder(seed, world);
   }
@@ -46,26 +44,25 @@ export class Instantiator {
   byNpcId(npcId: string): NPCInstance {
     const existing = this.registry.instances.get(npcId);
     if (existing) return existing;
-    const adult = ADULT_ID.exec(npcId);
-    if (adult) {
-      const idx = Number(adult[1]);
-      if (idx >= this.demo.totalAdults) throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
-      return this.buildAdult(idx);
+    const adultIdx = parseAdultId(npcId);
+    if (adultIdx !== undefined) {
+      if (adultIdx >= this.demo.totalAdults) throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
+      return this.buildAdult(adultIdx);
     }
-    const kid = /^k(\d+)\.(\d+)\.(\d+)$/.exec(npcId);
-    if (kid) return this.buildKid(Number(kid[1]), Number(kid[2]), Number(kid[3]));
+    const kid = parseKidId(npcId);
+    if (kid) return this.buildKid(kid.groupIdx, kid.h, kid.i);
     throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
   }
 
+  /** The person behind a crowd agent: determinate for a parcel handle, an alibi of the same type and gender otherwise. */
   fromCrowd(crowdId: string, timeMin: number, agent: CrowdAgent): NPCInstance {
     const bound = this.registry.crowdBindings.get(crowdId);
     if (bound) return this.registry.instances.get(bound)!;
     const h = parseHandle(crowdId);
     if (h?.kind === 'parcel') {
-      // A parcel handle names a filled job slot: the person is determinate.
       const wp = this.world.workplacesByParcel.get(h.id)!;
       const adultIdx = this.assignment.adultOfSlot(wp.slotOffset + h.slot)!;
-      const npcId = `a${adultIdx}`;
+      const npcId = adultId(adultIdx);
       const instance = this.registry.instances.get(npcId) ?? this.buildAdult(adultIdx);
       this.registry.crowdBindings.set(crowdId, npcId);
       return instance;
@@ -74,6 +71,7 @@ export class Instantiator {
       const adultIdx = rand(this.seed, 'alibi', crowdId, k).int(this.demo.totalAdults);
       if (this.registry.claimedAdults.has(adultIdx)) continue;
       if (this.assignment.typeOfAdult(adultIdx).type !== agent.type) continue;
+      if (this.genders.of(adultId(adultIdx)) !== agent.gender) continue;
       if (k < ALIBI_STRICT_ATTEMPTS && !this.plausiblyOutdoors(adultIdx, timeMin)) continue;
       const instance = this.buildAdult(adultIdx);
       this.registry.crowdBindings.set(crowdId, instance.npcId);
@@ -94,8 +92,7 @@ export class Instantiator {
         const adultIdx = this.assignment.adultOfSlot(globalSlot);
         if (adultIdx === undefined) continue;
         if (query.type && this.assignment.typeOfAdult(adultIdx).type !== query.type) continue;
-        const npcId = `a${adultIdx}`;
-        const existing = this.registry.instances.get(npcId);
+        const existing = this.registry.instances.get(adultId(adultIdx));
         if (existing) {
           if (existing.flags.dead || !existing.job) continue;
           return existing;
@@ -116,8 +113,7 @@ export class Instantiator {
         sawInstanced = true;
         continue;
       }
-      const instance = this.buildAdult(adultIdx, spec.name);
-      return instance;
+      return this.buildAdult(adultIdx, spec.name);
     }
     if (sawInstanced) throw new SimulationError('E_CONFLICT', 'every NPC matching the reservation is already instanced');
     throw new SimulationError('E_NO_MATCH', 'no NPC matches the reservation spec');
@@ -125,7 +121,7 @@ export class Instantiator {
 
   private matchesSpec(adultIdx: number, spec: ReservedSpec, gender: Gender | undefined): boolean {
     if (this.assignment.typeOfAdult(adultIdx).type !== spec.type) return false;
-    if (gender && this.genderOf(`a${adultIdx}`) !== gender) return false;
+    if (gender && this.genders.of(adultId(adultIdx)) !== gender) return false;
     const { groupIdx } = this.demo.locateAdult(adultIdx);
     if (spec.homeDistrictId && this.world.groups[groupIdx]!.districtId !== spec.homeDistrictId) return false;
     const job = this.assignment.jobOfAdult(adultIdx);
@@ -171,11 +167,11 @@ export class Instantiator {
     const home = this.assignment.homeOf(groupIdx, h);
     const job = this.assignment.jobOfAdult(adultIdx);
     const type = this.assignment.typeOfAdult(adultIdx);
-    return this.routines.build(`a${adultIdx}`, type.category, home.parcelId, job);
+    return this.routines.build(adultId(adultIdx), type.category, home.parcelId, job);
   }
 
   private buildAdult(adultIdx: number, nameOverride?: NPCName): NPCInstance {
-    const npcId = `a${adultIdx}`;
+    const npcId = adultId(adultIdx);
     const { groupIdx, h, member } = this.demo.locateAdult(adultIdx);
     const home = this.assignment.homeOf(groupIdx, h);
     const job = this.assignment.jobOfAdult(adultIdx);
@@ -183,7 +179,7 @@ export class Instantiator {
     const instance: NPCInstance = {
       npcId,
       name: nameOverride ?? this.memberName(groupIdx, h, npcId),
-      gender: this.genderOf(npcId),
+      gender: this.genders.of(npcId),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
       ...(job
@@ -200,29 +196,29 @@ export class Instantiator {
   }
 
   private buildKid(groupIdx: number, h: number, i: number): NPCInstance {
+    const npcId = kidId(groupIdx, h, i);
     if (groupIdx >= this.world.groups.length || h >= this.demo.households(groupIdx)) {
-      throw new SimulationError('E_UNKNOWN_ID', `no NPC k${groupIdx}.${h}.${i}`);
+      throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
     }
     const shape = this.demo.householdShape(groupIdx, h);
-    if (i >= shape.kids) throw new SimulationError('E_UNKNOWN_ID', `no NPC k${groupIdx}.${h}.${i}`);
-    const npcId = `k${groupIdx}.${h}.${i}`;
+    if (i >= shape.kids) throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
     const home = this.assignment.homeOf(groupIdx, h);
     const tier = this.world.groups[groupIdx]!.tier;
     const type = this.assignment.residentTypeCandidates(tier)[0]!;
     const family: FamilyMember[] = [];
     for (let m = 0; m < shape.adults; m++) {
-      const parentId = `a${this.demo.adultIndexOf(groupIdx, h, m)}`;
+      const parentId = adultId(this.demo.adultIndexOf(groupIdx, h, m));
       family.push(this.stub(parentId, 'parent', this.memberName(groupIdx, h, parentId)));
     }
     for (let s = 0; s < shape.kids; s++) {
       if (s === i) continue;
-      const sibId = `k${groupIdx}.${h}.${s}`;
+      const sibId = kidId(groupIdx, h, s);
       family.push(this.stub(sibId, 'sibling', this.memberName(groupIdx, h, sibId)));
     }
     const instance: NPCInstance = {
       npcId,
       name: this.memberName(groupIdx, h, npcId),
-      gender: this.genderOf(npcId),
+      gender: this.genders.of(npcId),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
       family,
@@ -233,26 +229,10 @@ export class Instantiator {
     return instance;
   }
 
-  /**
-   * Resolved from the npc id alone, so a stub and its full instance always
-   * agree: partners come from their household's one couple draw, everyone
-   * else from their own.
-   */
-  private genderOf(npcId: string): Gender {
-    const adult = ADULT_ID.exec(npcId);
-    if (adult) {
-      const { groupIdx, h, member } = this.demo.locateAdult(Number(adult[1]));
-      if (COUPLE_FORMS.has(this.demo.householdShape(groupIdx, h).form)) {
-        return pickCoupleGender(this.seed, this.params, `${groupIdx}.${h}`, member);
-      }
-    }
-    return pickGender(this.seed, this.params.femaleShare, npcId);
-  }
-
   /** Couple and kid households share a family name; roommates keep their own. */
   private memberName(groupIdx: number, h: number, npcId: string): NPCName {
     const shape = this.demo.householdShape(groupIdx, h);
-    const own = pickName(this.seed, this.pool, npcId, this.genderOf(npcId));
+    const own = pickName(this.seed, this.pool, npcId, this.genders.of(npcId));
     if (shape.form === 'shared' || shape.form === 'single') return own;
     const family = rand(this.seed, 'famname', groupIdx, h).pick(this.pool.family);
     return { given: own.given, family };
@@ -263,12 +243,12 @@ export class Instantiator {
     const out: FamilyMember[] = [];
     for (let m = 0; m < shape.adults; m++) {
       if (m === member) continue;
-      const id = `a${this.demo.adultIndexOf(groupIdx, h, m)}`;
+      const id = adultId(this.demo.adultIndexOf(groupIdx, h, m));
       const relation = shape.form === 'shared' ? 'roommate' : 'partner';
       out.push(this.stub(id, relation, this.memberName(groupIdx, h, id)));
     }
     for (let i = 0; i < shape.kids; i++) {
-      const id = `k${groupIdx}.${h}.${i}`;
+      const id = kidId(groupIdx, h, i);
       out.push(this.stub(id, 'child', this.memberName(groupIdx, h, id)));
     }
     return out;

@@ -5,11 +5,15 @@
 
 import { validateInput } from './validate.js';
 import { WorldModel } from '../world/model.js';
+import { HousingStock } from '../population/housing.js';
+import { HouseholdLedger } from '../population/household.js';
+import { calibrateHousing } from '../population/calibration.js';
 import { Demographics } from '../population/demographics.js';
 import { AssignmentModel } from '../population/assignment.js';
 import { buildStats } from '../population/stats.js';
 import { resolveParams, type ResolvedParams } from '../population/defaults.js';
 import { CrowdModel } from '../crowd/model.js';
+import { GenderResolver } from '../instancing/gender.js';
 import { Instantiator } from '../instancing/instantiator.js';
 import { resolvePool } from '../instancing/name-pool.js';
 import { RoutineBuilder } from '../instancing/routine.js';
@@ -41,9 +45,12 @@ export type InstantiateHandle = { npcId: string } | { crowdId: string; timeMin: 
 
 export class CitySimulation {
   private readonly params: ResolvedParams;
+  private readonly typeSet: NPCTypeSet;
+  private readonly calibrationFactor: number;
   private readonly world: WorldModel;
   private readonly demo: Demographics;
   private readonly assignment: AssignmentModel;
+  private readonly genders: GenderResolver;
   private readonly registry = new Registry();
   private readonly instantiator: Instantiator;
   private readonly behavior: BehaviorModel;
@@ -53,29 +60,26 @@ export class CitySimulation {
   constructor(private readonly input: SimulationInput) {
     validateInput(input);
     this.params = resolveParams(input.params);
-    const typeSet = input.npcTypes ?? DEFAULT_TYPE_SET;
-    const namePool = input.namePool ?? typeSet.namePool;
-    this.world = new WorldModel(input.seed, input.blueprint, input.networks, this.params, input.interiors);
-    if (this.world.groups.length === 0) {
-      throw new SimulationError('E_INVALID_INPUT', 'blueprint.parcels: no habitable residential capacity', { field: 'blueprint.parcels' });
-    }
-    this.demo = new Demographics(input.seed, this.world, this.params);
-    this.assignment = new AssignmentModel(input.seed, this.world, this.demo, typeSet, this.params);
-    this.instantiator = new Instantiator(input.seed, this.world, this.demo, this.assignment, this.params, resolvePool(namePool), this.registry);
+    this.typeSet = input.npcTypes ?? DEFAULT_TYPE_SET;
+    const namePool = input.namePool ?? this.typeSet.namePool;
+    const housing = new HousingStock(input.seed, input.blueprint);
+    const ledger = new HouseholdLedger(input.seed, this.params.householdMix);
+    this.calibrationFactor = calibrateHousing(housing, ledger, this.params.occupancyRate, input.blueprint.stats.population);
+    this.world = new WorldModel(input.seed, input.blueprint, input.networks, this.params, housing.groups(this.calibrationFactor), input.interiors);
+    this.demo = new Demographics(this.world, ledger, this.params);
+    this.assignment = new AssignmentModel(input.seed, this.world, this.demo, this.typeSet, this.params);
+    this.genders = new GenderResolver(input.seed, this.demo, this.params);
+    this.instantiator = new Instantiator(input.seed, this.world, this.demo, this.assignment, resolvePool(namePool), this.registry, this.genders);
     this.behavior = new BehaviorModel(input.seed, this.world, this.registry);
-    this.typeSet = typeSet;
   }
 
-  private readonly typeSet: NPCTypeSet;
-
   populationStats(): PopulationStats {
-    this.stats ??= buildStats(this.world, this.demo, this.assignment);
+    this.stats ??= buildStats(this.world, this.demo, this.assignment, this.calibrationFactor);
     return this.stats;
   }
 
   crowd(timeMin: number, scope: CrowdScope, opts?: CrowdOpts): CrowdSlice {
-    this.crowdModel ??= new CrowdModel(this.input.seed, this.world, this.populationStats(), this.typeSet, this.params, this.assignment);
-    return this.crowdModel.crowd(timeMin, scope, opts);
+    return this.crowdLayer().crowd(timeMin, scope, opts);
   }
 
   instantiate(handle: InstantiateHandle): NPCInstance {
@@ -85,8 +89,7 @@ export class CitySimulation {
       return inst;
     }
     if ('crowdId' in handle) {
-      this.crowdModel ??= new CrowdModel(this.input.seed, this.world, this.populationStats(), this.typeSet, this.params, this.assignment);
-      const agent = this.crowdModel.agentAt(handle.crowdId, handle.timeMin);
+      const agent = this.crowdLayer().agentAt(handle.crowdId, handle.timeMin);
       if (!agent) throw new SimulationError('E_STALE_HANDLE', `crowd agent ${handle.crowdId} is not alive at ${handle.timeMin}`);
       const inst = this.instantiator.fromCrowd(handle.crowdId, handle.timeMin, agent);
       this.registry.log({ k: 'crowd', crowdId: handle.crowdId, timeMin: handle.timeMin });
@@ -220,6 +223,20 @@ export class CitySimulation {
     } finally {
       this.registry.replaying = false;
     }
+  }
+
+  /** Built on first use: it reads the aggregate stats, which stay lazy until then. */
+  private crowdLayer(): CrowdModel {
+    this.crowdModel ??= new CrowdModel(
+      this.input.seed,
+      this.world,
+      this.populationStats(),
+      this.typeSet,
+      this.params,
+      this.assignment,
+      this.genders,
+    );
+    return this.crowdModel;
   }
 
   private vacateJob(npcId: string): void {

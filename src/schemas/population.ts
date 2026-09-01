@@ -14,6 +14,13 @@ export interface PopulationStats {
   unemployed: number;
   /** NPC type -> count, city wide. */
   typeCounts: Record<string, number>;
+  /**
+   * Multiplier applied to the housing stock estimated from residential floor
+   * area so residents match the blueprint's stats.population within 3
+   * percent. 1 when the blueprint carries no figure or the estimate already
+   * agreed.
+   */
+  calibrationFactor: number;
   perDistrict: DistrictPopulation[];
 }
 

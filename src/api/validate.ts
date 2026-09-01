@@ -37,6 +37,7 @@ export function validateInput(input: SimulationInput): void {
     if (p.type === 'residential') residential++;
   }
   if (residential === 0) fail('blueprint.parcels', 'at least one residential parcel');
+  if (!bp.stats || !(bp.stats.population >= 0)) fail('blueprint.stats.population', 'must be >= 0');
 
   if (input.networks) {
     for (const r of input.networks.transit.routes) {
