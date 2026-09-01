@@ -6,6 +6,7 @@
  */
 
 import { rand } from '../core/rng.js';
+import { lastAtMost } from '../core/search.js';
 import { KIDS_COUNT_WEIGHTS, SHARED_SIZE_WEIGHTS, type ResolvedParams } from './defaults.js';
 import type { WorldModel } from '../world/model.js';
 
@@ -104,27 +105,10 @@ export class Demographics {
 
   /** Inverse of adultIndexOf. */
   locateAdult(adultIdx: number): { groupIdx: number; h: number; member: number } {
-    const groupIdx = this.searchGroup(adultIdx);
+    const groupIdx = lastAtMost(this.groupIndex.length, (i) => this.groupIndex[i]!.adultOffset, adultIdx);
     const g = this.groupIndex[groupIdx]!;
     const local = adultIdx - g.adultOffset;
-    let lo = 0;
-    let hi = g.households - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (g.adultPrefix[mid]! <= local) lo = mid;
-      else hi = mid - 1;
-    }
-    return { groupIdx, h: lo, member: local - g.adultPrefix[lo]! };
-  }
-
-  private searchGroup(adultIdx: number): number {
-    let lo = 0;
-    let hi = this.groupIndex.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (this.groupIndex[mid]!.adultOffset <= adultIdx) lo = mid;
-      else hi = mid - 1;
-    }
-    return lo;
+    const h = lastAtMost(g.households, (i) => g.adultPrefix[i]!, local);
+    return { groupIdx, h, member: local - g.adultPrefix[h]! };
   }
 }

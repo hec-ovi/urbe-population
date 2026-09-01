@@ -2,7 +2,7 @@
 
 Purpose: statistical NPC population with lazy instantiation: crowds run cheap by type, a specific NPC gets a full deterministic life (home, job, family, routine, name) only on interaction, and stays persistent from then on.
 
-Status: draft v0.1. Query surface stable enough to build against; statistical defaults finalize with docs/RESEARCH.md. Breaking changes go through the orchestrator.
+Status: v0.1 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Time: integer minutes since world epoch (Monday 00:00). Day = floor(t / 1440) % 7, 0 = Monday; minute of day = t % 1440. Routines repeat weekly.

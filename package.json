@@ -17,7 +17,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "testbed": "tsc -p tsconfig.testbed.json"
   },
   "license": "UNLICENSED",
   "devDependencies": {

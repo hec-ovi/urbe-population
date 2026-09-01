@@ -6,3 +6,4 @@ dist/
 .env
 docs/FULL-REQUIREMENTS.md
 .research/
+testbed/dist/

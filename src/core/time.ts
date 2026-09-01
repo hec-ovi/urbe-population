@@ -16,13 +16,3 @@ export function minuteOfDay(t: number): number {
   return ((t % MIN_PER_DAY) + MIN_PER_DAY) % MIN_PER_DAY;
 }
 
-export function minuteOfWeek(t: number): number {
-  return ((t % MIN_PER_WEEK) + MIN_PER_WEEK) % MIN_PER_WEEK;
-}
-
-/** Whether minute-of-day m falls inside [start, end), spanning midnight when end < start. */
-export function inWindow(m: number, start: number, end: number): boolean {
-  if (start === end) return true;
-  if (start < end) return m >= start && m < end;
-  return m >= start || m < end;
-}

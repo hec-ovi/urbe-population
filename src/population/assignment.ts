@@ -6,6 +6,7 @@
  */
 
 import { Permutation } from '../core/feistel.js';
+import { lastAtMost } from '../core/search.js';
 import { rand } from '../core/rng.js';
 import { chosenRoleCounts, isSecuritySlot, shiftForSlot } from './jobs.js';
 import type { ResolvedParams } from './defaults.js';
@@ -71,14 +72,7 @@ export class AssignmentModel {
 
   jobOfSlot(globalSlot: number): JobAssignment {
     const workplaces = this.world.workplaces;
-    let lo = 0;
-    let hi = workplaces.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (workplaces[mid]!.slotOffset <= globalSlot) lo = mid;
-      else hi = mid - 1;
-    }
-    const workplace = workplaces[lo]!;
+    const workplace = workplaces[lastAtMost(workplaces.length, (i) => workplaces[i]!.slotOffset, globalSlot)]!;
     const localSlot = globalSlot - workplace.slotOffset;
     return {
       workplace,
@@ -167,14 +161,7 @@ export class AssignmentModel {
     const group = this.world.groups[groupIdx]!;
     const perm = new Permutation(Math.max(1, group.totalUnits), `${this.seed}|home|${groupIdx}`);
     const unitIdx = perm.forward(h);
-    let lo = 0;
-    let hi = group.blocks.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (group.blocks[mid]!.unitOffset <= unitIdx) lo = mid;
-      else hi = mid - 1;
-    }
-    const block = group.blocks[lo]!;
+    const block = group.blocks[lastAtMost(group.blocks.length, (i) => group.blocks[i]!.unitOffset, unitIdx)]!;
     return { parcelId: block.parcelId, unit: unitIdx - block.unitOffset };
   }
 }
