@@ -13,8 +13,13 @@ export interface SimulationParams {
   householdMix?: HouseholdMix;
   /** Work schedule weights, normalized internally. */
   shiftMix?: ShiftMix;
-  /** Multiplier on ambient crowd density. Default 1. */
-  crowdScale?: number;
+  /**
+   * Multiplier on how many people are out in public space. 1 is the
+   * research-calibrated share of the population outdoors by hour (see
+   * docs/RESEARCH.md); raise it for a busier looking city, lower it for a
+   * sleepy one. Sane range 0.25 to 4.
+   */
+  streetDensity?: number;
   /** Fallback transit headway in minutes when the networks input is absent. */
   defaultHeadwayMin?: number;
 }

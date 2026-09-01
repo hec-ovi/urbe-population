@@ -1,9 +1,9 @@
 /**
  * Standalone fixture: three districts (downtown, residential, industrial with
- * zero residents), workplaces including a 24/7 police station and a factory,
- * a bus line and one interior NpcSupport (the cafe). Sized so every job slot
- * is filled (residential capacity exceeds jobs), which keeps vendor queries
- * total. Used by tests and the 2D testbed.
+ * zero residents), one workplace of every staffed parcel type, a bus line and
+ * one interior NpcSupport (the cafe). Sized so every job slot is filled
+ * (residential capacity exceeds jobs), which keeps vendor queries total.
+ * Used by tests and the 2D testbed.
  */
 
 import type { CityBlueprint, Parcel, ParcelType, Polygon, Vec2, WealthTier } from '../schemas/blueprint.js';
@@ -58,20 +58,27 @@ export const FIXTURE_BLUEPRINT: CityBlueprint = {
       { id: 'e2', class: 'street', path: [[250, 0], [250, 500]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d0'] },
       { id: 'e3', class: 'street', path: [[750, 0], [750, 500]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d1'] },
       { id: 'e4', class: 'street', path: [[1000, 250], [1500, 250]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d2'] },
+      { id: 'e5', class: 'street', path: [[500, 450], [1000, 450]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d1'] },
     ],
   },
   parcels: [
-    parcel('p_r0', 'd0', 'residential', 'mid', [100, 300, 20, 20], 'e0', [110, 250], [2, 4]),
-    parcel('p_r1', 'd1', 'residential', 'poor', [550, 300, 20, 20], 'e1', [560, 250], [4, 6]),
-    parcel('p_r2', 'd1', 'residential', 'poor', [650, 300, 20, 20], 'e1', [660, 250], [4, 6]),
-    parcel('p_r3', 'd1', 'residential', 'poor', [850, 300, 20, 20], 'e1', [860, 250], [4, 6]),
-    parcel('p_r4', 'd1', 'residential', 'poor', [950, 300, 20, 20], 'e1', [960, 250], [4, 6]),
+    parcel('p_r0', 'd0', 'residential', 'mid', [100, 300, 30, 30], 'e0', [110, 250], [2, 4]),
+    parcel('p_r1', 'd1', 'residential', 'poor', [550, 300, 30, 30], 'e1', [560, 250], [4, 6]),
+    parcel('p_r2', 'd1', 'residential', 'poor', [650, 300, 30, 30], 'e1', [660, 250], [4, 6]),
+    parcel('p_r3', 'd1', 'residential', 'poor', [850, 300, 30, 30], 'e1', [860, 250], [4, 6]),
+    parcel('p_r4', 'd1', 'residential', 'poor', [950, 300, 30, 30], 'e1', [960, 250], [4, 6]),
     parcel('p_cafe', 'd0', 'coffee_shop', 'mid', [300, 260, 10, 8], 'e0', [305, 250], [1, 1]),
     parcel('p_office', 'd0', 'offices', 'mid', [150, 100, 10, 10], 'e2', [250, 105], [2, 2]),
     parcel('p_rest', 'd0', 'restaurant', 'mid', [350, 200, 12, 10], 'e0', [355, 250], [1, 1]),
     parcel('p_police', 'd1', 'police', 'poor', [700, 100, 15, 15], 'e3', [750, 105], [1, 2]),
     parcel('p_shop', 'd1', 'commerce', 'poor', [800, 200, 15, 15], 'e1', [805, 250], [1, 2]),
     parcel('p_factory', 'd2', 'factory', 'poor', [1100, 300, 30, 20], 'e4', [1110, 250], [1, 2]),
+    parcel('p_hotel', 'd0', 'hotel', 'mid', [400, 100, 20, 20], 'e2', [250, 110], [2, 3]),
+    parcel('p_clinic', 'd0', 'clinic', 'mid', [50, 400, 15, 15], 'e2', [250, 405], [1, 2]),
+    parcel('p_corpo', 'd0', 'corpo', 'mid', [200, 50, 15, 15], 'e2', [250, 55], [2, 3]),
+    parcel('p_mall', 'd1', 'mall', 'poor', [600, 100, 25, 25], 'e3', [750, 115], [1, 2]),
+    parcel('p_hospital', 'd1', 'hospital', 'poor', [850, 100, 20, 20], 'e3', [750, 120], [1, 2]),
+    parcel('p_base', 'd2', 'military', 'poor', [1200, 100, 25, 25], 'e4', [1200, 250], [1, 2]),
   ],
   transit: {
     busStops: [
@@ -87,7 +94,11 @@ export const FIXTURE_BLUEPRINT: CityBlueprint = {
   },
   stats: {
     population: 0,
-    parcelCounts: { ...ZERO_COUNTS, residential: 5, coffee_shop: 1, offices: 1, restaurant: 1, police: 1, commerce: 1, factory: 1 },
+    parcelCounts: {
+      ...ZERO_COUNTS,
+      residential: 5, coffee_shop: 1, offices: 1, restaurant: 1, police: 1, commerce: 1, factory: 1,
+      hotel: 1, clinic: 1, corpo: 1, mall: 1, hospital: 1, military: 1,
+    },
     perDistrict: [],
   },
 };

@@ -7,3 +7,5 @@
 0.2.1: crowd() sampled path runs sub-millisecond warm on 8000-edge, 50k-resident cities (district group tables memoized per timestamp, per-edge counts via numeric hashing); maxAgents 0 is a pure count path with no sampling cost.
 
 0.2.2: testbed frontend lives in src/ui (views, widgets, components, one adapter over the library surface), with its own contract; npm run testbed builds it into testbed/ and serves http://localhost:8080/testbed/.
+
+0.3: staffing is a rota (posts x shift waves x day crews), so an open place has staff and a queryable vendor at every minute of its opening hours, every day it opens, with interior role counts setting the on-duty headcount; job slots fill breadth-first, opening shifts of every workplace before deeper slots, so small venues stay staffed when a city has more slots than workers. Street presence is calibrated to time-use and travel statistics (weekday peak ~15% of the population outdoors, midday bump, evening tail, quiet night; flatter weekend plateau), errand and leisure trips land where the land use pulls them, kids count as street life, and `params.streetDensity` scales the whole curve.

@@ -22,6 +22,20 @@ IPF and friends need microdata samples and materialize whole tables; the sample-
 - Departure times (ACS B08302): 14-bucket curve, peak 7:00-7:29 at 14.3%; 5.5% leave between midnight and 5 a.m.
 - Commute mode (ACS 2024): bus 1.7%, subway 1.5% nationally; transit-heavy cities run 15-30% (Vienna 29.8%), so mode shares are per-city params with a transit-city default.
 - 24/7 staffing: one continuously staffed post = 168h / 40h = 4.2 FTE, x1.15-1.25 relief = 5-6 people; a venue with counter + security posts needs ~10 distinct employees.
+- Rota shape: a place is staffed by posts (people on duty at once), waves (shift windows tiling the open span, 8 h at most) and day crews (5 working days each, ILO/BLS full-time norm), so employees = posts x waves x crews. A 24/7 post lands on 3 x 2 = 6 people, matching the FTE arithmetic above; a shop open 12 h, 7 days lands on 2 x 2 = 4 per post.
+
+## Street presence (2026-09-01)
+How much of a city is out in public space at hour H, and where.
+
+- Time-location budget (NHAPS, Klepeis et al. 2001, n=9386): 87% of the day indoors, ~6% in an enclosed vehicle, ~7% outdoors. Employed people: 92% indoors, 6% in transit, 2% outdoors.
+- Trip counts: 3.4 trips per person per day (NHTS 2017), 2.9 in Germany (MiD 2023) with 84 min of daily travel; ~3.5 trips and ~80 min across EU cities (OPTIMISM 2022).
+- Trip timing (NHTS, BTS Daily Travel Quick Facts): noon-13:00 carries 7.4% of daily trips, more than the 8-9:00 commute peak at 5.5%. Non-motorized travel has four peaks (08:00, noon, 15:00, 18:00) against three for motorized. Weekend curves are flatter, start later and have no sharp morning peak (Swiss HTS via MATSim Zurich, 2025).
+- Pedestrian counts: Kendall Square, Cambridge (Sevtsuk, JAPA 2021, 60 segments) averages ~436 pedestrians per segment-hour at midday and ~428 in the evening window: the evening is longer, not denser. Copenhagen's Stroget carries ~54,000 pedestrians per 12 h (Gehl public-life surveys).
+- Comfort ceiling (Fruin 1971, the source of the HCM pedestrian tables): level of service A is above 3.3 m2 per pedestrian, B 2.3-3.3, C 1.4-2.3, and crowding starts near 23 pedestrians per minute per metre (13 by Copenhagen norms). A 90 m radius holding ~600 m of 3 m pavement is still LOS A at 170 people, so a lively street stays far below the crowding threshold.
+
+Calibration used (src/crowd/presence.ts). The published outdoor curve peaks near 11% of the population at 17:00-18:00, dips to 5.5-6% mid-morning and mid-afternoon, and averages ~5% over the day. This world has no private car traffic layer, so trips made by car appear as people on the street too: presence is set ~1.4x the published outdoors-only curve (still under the outdoors-plus-vehicle 13% ceiling), giving a weekday peak near 15% of the population, ~10-11% at midday, ~6% at 21:00 and ~1% overnight; the weekend runs as a flat 11-12% plateau from late morning to early evening. `params.streetDensity` multiplies the whole curve for hosts that want a busier or quieter city.
+
+Where they walk: pedestrian volumes track the land use fronting the pavement, so each street edge carries a share of its district proportional to length times the pull of the doors within 60 m of it (retail and food 3-4, offices and clinics 1.5, homes 0.6, industry 0.3-0.5), and errand and leisure trips are spread across districts by that same pull rather than kept at home.
 
 ## Behavior and scheduling
 Hand-rolled discriminated-union FSMs (XState is a 2.3 MB actor framework, wrong tool; robot3 the fallback if declarative authoring ever matters). Instanced NPCs advance by discrete events (arrive work 08:00, board 16:12 bus), not ticks; the aggregate layer needs no scheduler at all: it is closed-form per (time, place, type). Routine schema borrowed from activity-based travel demand (ActivitySim/MATSim): a day is a list of (activity, place, start, duration, mode).

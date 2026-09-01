@@ -30,7 +30,7 @@ Time is integer minutes since a Monday midnight epoch; routines repeat weekly.
 ## Out
 
 - **`populationStats()`**: residents, households, employment and NPC type counts per district and tier.
-- **`crowd(time, scope)`**: typed counts for a city, district, street edge, transit stop or parcel, plus a deterministic capped sample of agents. Every agent id is a handle that instantiates that exact person; parcel agents are the on-duty workers.
+- **`crowd(time, scope)`**: typed counts for a city, district, street edge, transit stop or parcel, plus a deterministic capped sample of agents. Every agent id is a handle that instantiates that exact person; parcel agents are the on-duty workers. How many people are outdoors at a given hour follows real time-use statistics, and `params.streetDensity` scales it for a busier or quieter city.
 - **`instantiate(handle)` / `getNPCVendor(query)` / `findNPCs(query)`**: a full NPC life, conditioned on everyone already instantiated. Home unit, job with shift, family, name, bus line, and a gapless weekly routine.
 - **`behaviorAt(npcId, time)`**: where that person is and what they are doing right now, as an interior anchor step, a walk intent, a street edge, a transit leg or home.
 - **`interrupt` / `resume`**: player interaction pauses a routine and puts it back.
@@ -43,8 +43,8 @@ Conservation holds throughout: an instanced NPC never contradicts the aggregate 
 ## How it works
 
 - **Aggregate**: per-district demographics (households, employment, shift prevalence) derived from real statistics, ACS households and commuting plus BLS shift data, as pure functions of the seed.
-- **Crowd**: typed counts and cheap pseudo-agents per street edge, stop, parcel or district at any minute. A crowd agent's id is the handle that instantiates it.
-- **Instancing**: on interaction the NPC gets its life. Staffing honors each building's role counts: a 24/7 place gets three shifts plus security, a night-only place gets night shifts, and every staffed job maps to an employed resident with a commute.
+- **Crowd**: typed counts and cheap pseudo-agents per street edge, stop, parcel or district at any minute. A crowd agent's id is the handle that instantiates it. Presence peaks at the morning and evening rush, holds a midday bump, thins overnight, and lands on the streets whose shops, cafes and offices pull people to them.
+- **Instancing**: on interaction the NPC gets its life. Staffing is a rota of posts, shift waves and day crews, so an open place has staff at every minute it is open, on every day it opens: a 24/7 place runs three waves plus security, a night-only place staffs night shifts, and every staffed job maps to an employed resident with a commute.
 - **Behavior**: a state snapshot per time. Inside a building the NPC runs the interior layer's routine anchors; the host owns the path geometry.
 
 `docs/RESEARCH.md` holds the statistics the defaults stand on, and `CONTRACT.md` is the full surface with its closed error set.

@@ -125,7 +125,7 @@ describe('crowd layer', () => {
     const walker = sim.instantiate({ crowdId: district.agents[0]!.crowdId, timeMin: MON_NOON });
     expect(walker.type).toBe(district.agents[0]!.type);
 
-    const busy = createSimulation({ ...makeInput(), params: { crowdScale: 20 } });
+    const busy = createSimulation({ ...makeInput(), params: { streetDensity: 20 } });
     const stop = busy.crowd(8 * 60, { kind: 'stop', id: 'b1' });
     expect(stop.agents.length).toBeGreaterThan(0);
     expect(stop.agents[0]!.activity).toBe('transit_wait');
@@ -144,6 +144,53 @@ describe('crowd layer', () => {
     expect(cafeDay.groups.reduce((s, g) => s + g.count, 0)).toBeGreaterThan(0);
     const policeNight = sim.crowd(MON_3AM, { kind: 'parcel', id: 'p_police' });
     expect(policeNight.groups.reduce((s, g) => s + g.count, 0)).toBeGreaterThan(0);
+  });
+});
+
+describe('street presence', () => {
+  const outdoors = (sim: CitySimulation, hour: number, day = 0): number =>
+    sim
+      .crowd(day * 24 * 60 + hour * 60, { kind: 'city' }, { maxAgents: 0 })
+      .groups.reduce((s, g) => s + g.count, 0);
+
+  it('puts a researched share of the city outdoors, with rush peaks and an evening tail', () => {
+    const sim = make();
+    const pop = sim.populationStats().population;
+    const share = (hour: number): number => outdoors(sim, hour) / pop;
+    expect(share(17)).toBeGreaterThan(0.1);
+    expect(share(17)).toBeLessThan(0.25);
+    expect(share(8)).toBeGreaterThan(0.07);
+    expect(share(13)).toBeGreaterThan(0.06);
+    expect(share(21)).toBeGreaterThan(0.03);
+    expect(share(3)).toBeLessThan(0.03);
+    expect(outdoors(sim, 17)).toBeGreaterThan(outdoors(sim, 13));
+    expect(outdoors(sim, 13)).toBeGreaterThan(outdoors(sim, 3) * 4);
+  });
+
+  it('flattens the rush at the weekend and holds the afternoon', () => {
+    const sim = make();
+    expect(outdoors(sim, 8, 5)).toBeLessThan(outdoors(sim, 8));
+    expect(outdoors(sim, 14, 5)).toBeGreaterThan(outdoors(sim, 14) * 0.9);
+  });
+
+  it('streetDensity scales liveliness without changing the shape of the day', () => {
+    const sim = make();
+    const busy = createSimulation({ ...makeInput(), params: { streetDensity: 3 } });
+    for (const hour of [9, 17, 21]) {
+      const ratio = outdoors(busy, hour) / outdoors(sim, hour);
+      expect(ratio).toBeGreaterThan(2.5);
+      expect(ratio).toBeLessThan(3.5);
+    }
+    const twin = createSimulation({ ...makeInput(), params: { streetDensity: 3 } });
+    expect(JSON.stringify(twin.crowd(MON_NOON, { kind: 'city' }))).toBe(JSON.stringify(busy.crowd(MON_NOON, { kind: 'city' })));
+  });
+
+  it('draws people to the streets the land use pulls them to', () => {
+    const sim = make();
+    const on = (id: string): number =>
+      sim.crowd(MON_NOON, { kind: 'edge', id }, { maxAgents: 0 }).groups.reduce((s, g) => s + g.count, 0);
+    // e1 and e5 are both 500 m of pavement in d1; only e1 has doors on it.
+    expect(on('e1')).toBeGreaterThan(on('e5'));
   });
 });
 
@@ -204,7 +251,77 @@ describe('lazy instantiation', () => {
   });
 });
 
+/** One workplace of every staffed kind, with hours inside and outside its rota. */
+const VENUES: { id: string; open: number[]; closed: number[] }[] = [
+  { id: 'p_cafe', open: [7, 12, 17], closed: [3, 20] },
+  { id: 'p_shop', open: [9, 13, 18], closed: [3, 21] },
+  { id: 'p_mall', open: [11, 16, 20], closed: [3, 23] },
+  { id: 'p_rest', open: [20], closed: [9] },
+  { id: 'p_office', open: [9, 13, 16], closed: [3, 21] },
+  { id: 'p_corpo', open: [8, 12, 15], closed: [3, 22] },
+  { id: 'p_clinic', open: [9, 14, 17], closed: [3, 21] },
+  { id: 'p_factory', open: [7, 13, 20], closed: [3, 23] },
+  { id: 'p_hotel', open: [3, 9, 15, 21], closed: [] },
+  { id: 'p_hospital', open: [3, 9, 15, 21], closed: [] },
+  { id: 'p_police', open: [3, 9, 15, 21], closed: [] },
+  { id: 'p_base', open: [3, 9, 15, 21], closed: [] },
+];
+
 describe('vendor queries and staffing', () => {
+  it('staffs every venue kind through its opening hours and empties it when closed', () => {
+    const sim = make();
+    for (const venue of VENUES) {
+      for (const hour of venue.open) {
+        const t = hour * 60;
+        const onDuty = sim.crowd(t, { kind: 'parcel', id: venue.id }, { maxAgents: 128 });
+        expect(onDuty.agents.length).toBeGreaterThan(0);
+        expect(onDuty.agents.length).toBe(onDuty.groups.reduce((s, g) => s + g.count, 0));
+        const vendor = sim.getNPCVendor({ parcelId: venue.id, timeMin: t });
+        expect(vendor.job!.parcelId).toBe(venue.id);
+      }
+      for (const hour of venue.closed) {
+        const t = hour * 60;
+        expect(sim.crowd(t, { kind: 'parcel', id: venue.id }).agents).toEqual([]);
+        expect(code(() => sim.getNPCVendor({ parcelId: venue.id, timeMin: t }))).toBe('E_NO_MATCH');
+      }
+    }
+  });
+
+  it('keeps the on-duty headcount steady across shifts and over the weekend', () => {
+    const sim = make();
+    const at = (id: string, timeMin: number): number => sim.crowd(timeMin, { kind: 'parcel', id }, { maxAgents: 128 }).agents.length;
+    const SAT = 5 * 24 * 60;
+    const SUN = 6 * 24 * 60;
+    for (const id of ['p_cafe', 'p_shop', 'p_hotel', 'p_police']) {
+      const monday = at(id, MON_NOON);
+      expect(at(id, SAT + MON_NOON)).toBe(monday);
+      expect(at(id, SUN + MON_NOON)).toBe(monday);
+    }
+    // The cafe's rota is the interior's declared barista count, morning and afternoon alike.
+    expect(at('p_cafe', 7 * 60)).toBe(at('p_cafe', 17 * 60));
+    expect(at('p_cafe', MON_NOON)).toBeGreaterThanOrEqual(1);
+    expect(at('p_cafe', MON_NOON)).toBeLessThanOrEqual(2);
+    const roles = sim
+      .crowd(MON_9, { kind: 'parcel', id: 'p_cafe' })
+      .agents.map((a) => sim.instantiate({ crowdId: a.crowdId, timeMin: MON_9 }).job!.role);
+    expect(roles.every((r) => r === 'barista')).toBe(true);
+    // Weekday-only kinds stay shut at the weekend.
+    expect(at('p_office', SAT + MON_NOON)).toBe(0);
+    // No job slot is handed to two people: a full shift is that many distinct NPCs.
+    const shift = sim.crowd(MON_9, { kind: 'parcel', id: 'p_corpo' }, { maxAgents: 128 }).agents;
+    const staff = new Set(shift.map((a) => sim.instantiate({ crowdId: a.crowdId, timeMin: MON_9 }).npcId));
+    expect(staff.size).toBe(shift.length);
+  });
+
+  it('staffs the opening shift of every venue first when jobs outnumber workers', () => {
+    const thin = createSimulation({ ...makeInput(), params: { occupancyRate: 0.05 } });
+    expect(thin.populationStats().employed).toBeLessThan(50);
+    for (const id of ['p_cafe', 'p_shop', 'p_police']) {
+      expect(thin.crowd(MON_9, { kind: 'parcel', id }).agents.length).toBeGreaterThan(0);
+      expect(thin.getNPCVendor({ parcelId: id, timeMin: MON_9 }).job!.parcelId).toBe(id);
+    }
+  });
+
   it('finds the on-duty barista at the cafe, on shift, with an interior role', () => {
     const sim = make();
     const vendor = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });

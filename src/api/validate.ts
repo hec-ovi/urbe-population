@@ -55,6 +55,6 @@ export function validateInput(input: SimulationInput): void {
       const v = p[key];
       if (v !== undefined && !(v > 0 && v <= 1)) fail(`params.${key}`, 'must be in (0, 1]');
     }
-    if (p.crowdScale !== undefined && !(p.crowdScale >= 0)) fail('params.crowdScale', 'must be >= 0');
+    if (p.streetDensity !== undefined && !(p.streetDensity >= 0)) fail('params.streetDensity', 'must be >= 0');
   }
 }

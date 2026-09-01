@@ -8,7 +8,8 @@
 import { Permutation } from '../core/feistel.js';
 import { lastAtMost } from '../core/search.js';
 import { rand } from '../core/rng.js';
-import { chosenRoleCounts, isSecuritySlot, shiftForSlot } from './jobs.js';
+import { chosenRoleCounts, isSecuritySlot, postOfSlot, shiftForSlot } from './jobs.js';
+import { SlotOrder } from './slots.js';
 import type { ResolvedParams } from './defaults.js';
 import type { Demographics } from './demographics.js';
 import type { WorldModel, Workplace } from '../world/model.js';
@@ -44,7 +45,7 @@ const DERIVED_ROLE: Partial<Record<ParcelType, string>> = {
 
 export class AssignmentModel {
   private readonly employedPerm: Permutation;
-  private readonly jobPerm: Permutation;
+  private readonly slotOrder: SlotOrder;
   readonly totalEmployed: number;
 
   constructor(
@@ -57,7 +58,7 @@ export class AssignmentModel {
     const target = Math.round(demo.totalAdults * params.laborForceParticipation * (1 - params.unemploymentRate));
     this.totalEmployed = Math.min(target, world.totalJobSlots);
     this.employedPerm = new Permutation(Math.max(1, demo.totalAdults), `${seed}|emp`);
-    this.jobPerm = new Permutation(Math.max(1, world.totalJobSlots), `${seed}|job`);
+    this.slotOrder = new SlotOrder(world.workplaces.map((w) => w.staffing.slotCount));
   }
 
   isEmployed(adultIdx: number): boolean {
@@ -67,7 +68,7 @@ export class AssignmentModel {
   jobOfAdult(adultIdx: number): JobAssignment | undefined {
     const rank = this.employedPerm.forward(adultIdx);
     if (rank >= this.totalEmployed) return undefined;
-    return this.jobOfSlot(this.jobPerm.forward(rank));
+    return this.jobOfSlot(this.slotOrder.slotOfRank(rank));
   }
 
   jobOfSlot(globalSlot: number): JobAssignment {
@@ -79,28 +80,26 @@ export class AssignmentModel {
       localSlot,
       globalSlot,
       role: this.roleOfSlot(workplace, localSlot),
-      shift: shiftForSlot(this.seed, workplace.parcelId, workplace.staffing, localSlot),
+      shift: shiftForSlot(workplace.staffing, localSlot),
     };
   }
 
   /** Which adult fills a job slot; undefined when the slot is unfilled. */
   adultOfSlot(globalSlot: number): number | undefined {
-    const rank = this.jobPerm.inverse(globalSlot);
+    const rank = this.slotOrder.rankOfSlot(globalSlot);
     if (rank >= this.totalEmployed) return undefined;
     return this.employedPerm.inverse(rank);
   }
 
+  /** The role a slot works: its post, which the interior's role table names when there is one. */
   roleOfSlot(workplace: Workplace, localSlot: number): string {
     const support = this.world.interiors.get(workplace.parcelId);
     if (support) {
       const counts = chosenRoleCounts(this.seed, workplace.parcelId, support);
-      const total = counts.reduce((s, n) => s + n, 0);
-      if (total > 0) {
-        let cursor = localSlot % total;
-        for (let i = 0; i < support.roles.length; i++) {
-          if (cursor < counts[i]!) return support.roles[i]!.role;
-          cursor -= counts[i]!;
-        }
+      let cursor = postOfSlot(workplace.staffing, localSlot);
+      for (let i = 0; i < support.roles.length; i++) {
+        if (cursor < counts[i]!) return support.roles[i]!.role;
+        cursor -= counts[i]!;
       }
     }
     if (isSecuritySlot(workplace.staffing, localSlot)) return 'security';

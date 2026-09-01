@@ -5,14 +5,27 @@
  * and of edge count when sampling is off (maxAgents 0). District group tables
  * are memoized per timestamp and per-edge counts use a string-free hash, so
  * the sampled path stays flat on large cities.
- * Street presence of worker categories follows the work district (commute
- * peaks around shifts, from the ACS departure curve); residents follow home.
+ * Who is outside and when comes from presence.ts; where they are comes from
+ * land-use pull: workers show up around their workplace, errand and leisure
+ * trips land in the districts and on the streets that draw people, and the
+ * neighbourhood's own traffic stays home.
  */
 
 import { hash01, mix01, rand, streamKey } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftCoversTime } from '../population/jobs.js';
 import { edgeHandle, parcelHandle, parseHandle } from './handles.js';
+import {
+  COMMUTE_WEEKDAY,
+  COMMUTE_WEEKEND,
+  ERRAND_WEEKDAY,
+  ERRAND_WEEKEND,
+  LOCAL_PRESENCE,
+  STREET_REGULAR,
+  TRANSIT_WAIT_SHARE,
+  WEEKEND_LOCAL_FACTOR,
+  curveAt,
+} from './presence.js';
 import { SimulationError } from '../schemas/errors.js';
 import type { AssignmentModel } from '../population/assignment.js';
 import type { WorldModel, CrowdEdge } from '../world/model.js';
@@ -23,12 +36,16 @@ import type { Activity, CrowdAgent, CrowdGroup, CrowdOpts, CrowdScope, CrowdSlic
 
 interface DistrictCrowdBase {
   districtId: string;
-  /** Resident-side counts (home district). */
-  typeCounts: Record<string, number>;
+  /** Residents by type (home district), kids folded in pro rata. */
+  residentTypes: Record<string, number>;
+  /** Street-category people by type (home district). */
+  streetTypes: Record<string, number>;
   /** Worker-side counts (work district), filled job slots only. */
   workTypeCounts: Record<string, number>;
   edges: CrowdEdge[];
-  edgeLengthTotal: number;
+  edgeWeightTotal: number;
+  /** Share of the city's street pull, so errand and leisure trips land here. */
+  pullShare: number;
 }
 
 interface DistrictGroups {
@@ -37,35 +54,8 @@ interface DistrictGroups {
   total: number;
 }
 
-type Curve = [number, number][];
-
 const DEFAULT_MAX_AGENTS = 64;
 const STOP_PERIOD_MIN = 8;
-
-const WORKER_COMMUTE: Curve = [
-  [0, 0.005], [300, 0.01], [390, 0.06], [450, 0.14], [510, 0.16], [570, 0.08], [720, 0.04],
-  [780, 0.05], [960, 0.09], [1020, 0.14], [1140, 0.07], [1260, 0.02], [1439, 0.005],
-];
-const RESIDENT_OUT: Curve = [
-  [0, 0.004], [420, 0.01], [540, 0.05], [720, 0.09], [840, 0.1], [1020, 0.08], [1140, 0.05], [1320, 0.015], [1439, 0.005],
-];
-const STREET_OUT: Curve = [
-  [0, 0.18], [360, 0.2], [540, 0.35], [1080, 0.38], [1320, 0.28], [1439, 0.2],
-];
-
-function curveAt(curve: Curve, m: number): number {
-  let prev = curve[0]!;
-  for (const point of curve) {
-    if (point[0] >= m) {
-      const [x1, y1] = prev;
-      const [x2, y2] = point;
-      if (x2 === x1) return y2;
-      return y1 + ((y2 - y1) * (m - x1)) / (x2 - x1);
-    }
-    prev = point;
-  }
-  return prev[1];
-}
 
 export class CrowdModel {
   private readonly districts = new Map<string, DistrictCrowdBase>();
@@ -73,6 +63,9 @@ export class CrowdModel {
   private readonly edgeIndex = new Map<string, number>();
   private readonly groupsCache = new Map<string, DistrictGroups>();
   private readonly fastKey: number;
+  /** City-wide pools that move to where the pull is, not where they sleep. */
+  private readonly cityResidentTypes: Record<string, number> = {};
+  private readonly cityStreetTypes: Record<string, number> = {};
 
   constructor(
     private readonly seed: string | number,
@@ -85,20 +78,47 @@ export class CrowdModel {
     this.fastKey = streamKey(seed, 'crowd');
     for (const t of typeSet.types) this.categoryByType.set(t.type, t.category);
     world.crowdEdges.forEach((e, i) => this.edgeIndex.set(e.id, i));
+    let cityPull = 0;
     for (const d of stats.perDistrict) {
-      const typeCounts: Record<string, number> = {};
+      const residentTypes: Record<string, number> = {};
+      const streetTypes: Record<string, number> = {};
+      let adults = 0;
+      let athome = 0;
       for (const tier of Object.values(d.byTier)) {
-        for (const [type, n] of Object.entries(tier.typeCounts)) typeCounts[type] = (typeCounts[type] ?? 0) + n;
+        for (const [type, n] of Object.entries(tier.typeCounts)) {
+          adults += n;
+          const category = this.categoryByType.get(type) ?? 'resident';
+          if (category === 'street') streetTypes[type] = (streetTypes[type] ?? 0) + n;
+          else if (category === 'resident') residentTypes[type] = (residentTypes[type] ?? 0) + n;
+          else continue;
+          athome += n;
+        }
+      }
+      // Kids have no job and no type of their own: fold them into the resident
+      // mix of their district, so school runs and play count as street life.
+      const kids = Math.max(0, d.population - adults);
+      if (kids > 0 && athome > 0) {
+        const grow = (athome + kids) / athome;
+        for (const map of [residentTypes, streetTypes]) {
+          for (const type of Object.keys(map)) map[type] = map[type]! * grow;
+        }
       }
       const edges = world.crowdEdges.filter((e) => e.districtId === d.districtId);
+      const edgeWeightTotal = edges.reduce((s, e) => s + e.weight, 0);
+      cityPull += edgeWeightTotal;
       this.districts.set(d.districtId, {
         districtId: d.districtId,
-        typeCounts,
+        residentTypes,
+        streetTypes,
         workTypeCounts: {},
         edges,
-        edgeLengthTotal: edges.reduce((s, e) => s + e.lengthM, 0),
+        edgeWeightTotal,
+        pullShare: edgeWeightTotal,
       });
+      addAll(this.cityResidentTypes, residentTypes);
+      addAll(this.cityStreetTypes, streetTypes);
     }
+    for (const base of this.districts.values()) base.pullShare = cityPull > 0 ? base.edgeWeightTotal / cityPull : 0;
     for (const wp of world.workplaces) {
       const base = this.districts.get(wp.districtId);
       if (!base) continue;
@@ -238,8 +258,8 @@ export class CrowdModel {
 
   /** Deterministic pedestrian count on one edge: district total scaled by length share. */
   private edgeCount(edge: CrowdEdge, base: DistrictCrowdBase, districtTotal: number, timeMin: number): number {
-    if (base.edgeLengthTotal <= 0) return 0;
-    const raw = (districtTotal * edge.lengthM) / base.edgeLengthTotal;
+    if (base.edgeWeightTotal <= 0) return 0;
+    const raw = (districtTotal * edge.weight) / base.edgeWeightTotal;
     const whole = Math.floor(raw);
     const extra = mix01(this.fastKey, this.edgeIndex.get(edge.id) ?? 0, Math.floor(timeMin / 60), 7) < raw - whole ? 1 : 0;
     return whole + extra;
@@ -248,8 +268,8 @@ export class CrowdModel {
   /** Edge-scope display counts: district groups scaled to the edge's share. */
   private edgeGroups(edge: CrowdEdge, timeMin: number): CrowdGroup[] {
     const base = this.districts.get(edge.districtId);
-    if (!base || base.edgeLengthTotal <= 0) return [];
-    const share = edge.lengthM / base.edgeLengthTotal;
+    if (!base || base.edgeWeightTotal <= 0) return [];
+    const share = edge.weight / base.edgeWeightTotal;
     const edgeIdx = this.edgeIndex.get(edge.id) ?? 0;
     const out: CrowdGroup[] = [];
     const dg = this.districtGroupsAt(base, timeMin);
@@ -312,7 +332,7 @@ export class CrowdModel {
     const districtId = this.world.districtAt(this.world.stopsById.get(stopId)!.position);
     const base = this.districts.get(districtId);
     const groups = new Map<string, CrowdGroup>();
-    if (base) this.accumulate(groups, base, timeMin, 0.05, 'transit_wait');
+    if (base) this.accumulate(groups, base, timeMin, TRANSIT_WAIT_SHARE, 'transit_wait');
     return [...groups.values()];
   }
 
@@ -330,6 +350,11 @@ export class CrowdModel {
     };
   }
 
+  /**
+   * Street presence of one district: workers around their shift at the district
+   * they work in, residents out on errands wherever the pull is, plus the
+   * neighbourhood's own local traffic and its street regulars.
+   */
   private accumulate(
     groups: Map<string, CrowdGroup>,
     base: DistrictCrowdBase,
@@ -341,7 +366,7 @@ export class CrowdModel {
     const m = minuteOfDay(timeMin);
     const weekend = day >= 5;
     const add = (type: string, count: number, fraction: number, activity: Activity): void => {
-      const raw = count * fraction * this.params.crowdScale * share;
+      const raw = count * fraction * this.params.streetDensity * share;
       const whole = Math.floor(raw);
       const extra = hash01(this.seed, 'round', base.districtId, type, activity, Math.floor(timeMin / 60)) < raw - whole ? 1 : 0;
       const n = whole + extra;
@@ -351,20 +376,26 @@ export class CrowdModel {
       if (cur) cur.count += n;
       else groups.set(key, { type, activity, count: n });
     };
-    for (const [type, count] of Object.entries(base.typeCounts)) {
-      const category = this.categoryByType.get(type) ?? 'resident';
-      if (category === 'street') {
-        add(type, count, curveAt(STREET_OUT, m), forceActivity ?? 'leisure');
-      } else if (category === 'resident') {
-        const fraction = curveAt(RESIDENT_OUT, m) * (weekend ? 1.2 : 1);
-        add(type, count, fraction, forceActivity ?? (m >= 540 && m < 900 ? 'shopping' : 'leisure'));
-      }
-    }
+
+    const commute = curveAt(weekend ? COMMUTE_WEEKEND : COMMUTE_WEEKDAY, m);
     for (const [type, count] of Object.entries(base.workTypeCounts)) {
-      const fraction = weekend ? curveAt(RESIDENT_OUT, m) : curveAt(WORKER_COMMUTE, m);
-      add(type, count, fraction, forceActivity ?? (m >= 660 && m < 840 ? 'leisure' : 'commuting'));
+      add(type, count, commute, forceActivity ?? (m >= 660 && m < 840 ? 'leisure' : 'commuting'));
     }
+
+    const errand = curveAt(weekend ? ERRAND_WEEKEND : ERRAND_WEEKDAY, m) * base.pullShare;
+    const errandActivity = forceActivity ?? (m >= 540 && m < 1140 ? 'shopping' : 'leisure');
+    for (const [type, count] of Object.entries(this.cityResidentTypes)) add(type, count, errand, errandActivity);
+
+    const local = curveAt(LOCAL_PRESENCE, m) * (weekend ? WEEKEND_LOCAL_FACTOR : 1);
+    for (const [type, count] of Object.entries(base.residentTypes)) add(type, count, local, forceActivity ?? 'leisure');
+
+    const regulars = curveAt(STREET_REGULAR, m) * base.pullShare;
+    for (const [type, count] of Object.entries(this.cityStreetTypes)) add(type, count, regulars, forceActivity ?? 'leisure');
   }
+}
+
+function addAll(target: Record<string, number>, source: Record<string, number>): void {
+  for (const [type, n] of Object.entries(source)) target[type] = (target[type] ?? 0) + n;
 }
 
 function mergeInto(target: Map<string, CrowdGroup>, groups: CrowdGroup[]): void {

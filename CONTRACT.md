@@ -22,7 +22,7 @@ Status: v0.1 implemented and tested. Statistical defaults documented in docs/RES
 
 ## Out (CitySimulation)
 - `populationStats(): PopulationStats` ([src/schemas/population.ts](src/schemas/population.ts)): residents, households, employment and NPC type counts per district and tier. Consumed by naming.
-- `crowd(timeMin, scope, opts?): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): groups carry exact typed counts; agents are a deterministic sample for every scope kind (city, district, edge, stop, parcel), capped by `opts.maxAgents` (default 64). Every agent's crowdId is stable for its trip and is an instantiation handle; parcel agents are the on-duty workers, so their handles resolve to those exact NPCs.
+- `crowd(timeMin, scope, opts?): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): groups carry exact typed counts; agents are a deterministic sample for every scope kind (city, district, edge, stop, parcel), capped by `opts.maxAgents` (default 64). Every agent's crowdId is stable for its trip and is an instantiation handle; parcel agents are the on-duty workers, so their handles resolve to those exact NPCs. Street presence follows the researched share of the population in public space by hour (docs/RESEARCH.md), scaled by `params.streetDensity`, and concentrates on the streets whose land use pulls it.
 - `instantiate(handle): NPCInstance` ([src/schemas/npc.ts](src/schemas/npc.ts)): handle is `{ crowdId, timeMin }`, `{ npcId }` (family stubs carry npcIds) or a VendorQuery. Assigns the full life, conditioned on everything already instantiated; persistent from then on.
 - `getNPC(npcId): NPCInstance`: instanced NPCs only.
 - `getNPCVendor(query: VendorQuery): NPCInstance`: the on-duty worker for a place, type or role at a time; instantiates if needed. Quest layer entry point.
@@ -49,7 +49,9 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - Same seed and same interaction order: identical instanced population.
 - Conservation: instanced NPCs never contradict aggregate stats; an assigned home unit, job slot or crowd identity is never reassigned; an instance never changes identity, home or family except through applyFlag.
 - Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs.
-- Staffing honors interior role [min, max] counts; 24/7 places get multi-shift coverage plus security; night-only places staff night shifts; every staffed job maps to an employed resident with a commute.
+- Staffing is a rota: posts (people on duty at once) x waves (shifts tiling the open span) x day crews (five days each, no overlap). An open place is staffed and vendor-queryable at every minute of its opening hours on every day it opens, with the same headcount on a Sunday as on a Tuesday, and empty when closed. Interior role [min, max] counts set the posts; 24/7 places get three waves plus security; night-only places staff night shifts; every staffed job maps to an employed resident with a commute.
+- When a city has more job slots than employed residents, slots fill breadth-first: every workplace's opening rota before any workplace's deeper slots, so small venues stay open and large employers carry the shortfall.
+- Street presence: the share of the population out in public space by hour is calibrated to time-use and travel statistics (docs/RESEARCH.md) and multiplied by `params.streetDensity` (default 1, the researched share). Presence is spread across districts and street edges by land-use pull, so commercial frontage carries more people than a bypass of the same length.
 - Standalone: runs against fixture blueprints with no other layer present.
 
 ## Depends on

@@ -4,6 +4,7 @@
  */
 
 import { polygonArea, polylineLength, midpoint, pointInPolygon, dist2 } from './geo.js';
+import { AttractionField } from './attraction.js';
 import { hash01 } from '../core/rng.js';
 import { staffWorkplace, type WorkplaceStaffing } from '../population/jobs.js';
 import { UNIT_AREA_BY_TIER } from '../population/defaults.js';
@@ -56,6 +57,8 @@ export interface CrowdEdge {
   id: string;
   districtId: string;
   lengthM: number;
+  /** Share of the district's street presence this edge draws: length times land-use pull. */
+  weight: number;
 }
 
 const TIER_ORDER: WealthTier[] = ['poor', 'mid', 'rich', 'high_rich'];
@@ -201,15 +204,20 @@ export class WorldModel {
   }
 
   private buildCrowdEdges(networks: Networks | undefined): void {
+    const pull = new AttractionField(this.blueprint.parcels);
+    const add = (id: string, districtId: string, path: Vec2[]): void => {
+      const lengthM = polylineLength(path);
+      this.crowdEdges.push({ id, districtId, lengthM, weight: lengthM * pull.along(path) });
+    };
     if (networks && networks.walk.edges.length > 0) {
       for (const e of networks.walk.edges) {
         if (e.kind !== 'sidewalk' && e.kind !== 'crossing') continue;
-        this.crowdEdges.push({ id: e.id, districtId: this.districtAt(midpoint(e.path)), lengthM: polylineLength(e.path) });
+        add(e.id, this.districtAt(midpoint(e.path)), e.path);
       }
     } else {
       for (const e of this.blueprint.streets.edges) {
         if (e.sidewalk.left <= 0 && e.sidewalk.right <= 0) continue;
-        this.crowdEdges.push({ id: e.id, districtId: e.districtIds[0] ?? this.districts[0]!.id, lengthM: polylineLength(e.path) });
+        add(e.id, e.districtIds[0] ?? this.districts[0]!.id, e.path);
       }
     }
   }
