@@ -42,6 +42,7 @@ export interface District {
   kind: DistrictKind;
   /** Dominant wealth tier; individual parcels may differ. */
   tier: WealthTier;
+  boundary: Polygon;
   maxFloors: number;
 }
 

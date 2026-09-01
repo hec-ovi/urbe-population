@@ -14,10 +14,10 @@ Status: draft v0.1. Query surface stable enough to build against; statistical de
 
 - `seed: string | number`
 - `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint (v0.2 mirror); a full atlas blueprint satisfies it.
-- `paths?`: [src/schemas/paths.ts](src/schemas/paths.ts): walk graph plus timetabled transit. Fixture schema until connections publishes. Absent: fallback derived from blueprint transit with default headways.
+- `networks?`: [src/schemas/networks.ts](src/schemas/networks.ts): consumed slice of connections Networks (walk graph, timetabled transit routes). Absent: fallback derived from blueprint transit with default headways.
 - `interiors?`: [src/schemas/interiors.ts](src/schemas/interiors.ts): parcelId -> NpcSupport (mirror of ../interior/schemas/npc.schema.json). Absent: per-type synthetic role sets.
-- `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): themed NPC type defs. Naming owns the final schema; built-in default set ships.
-- `namePool?`: given and family name arrays ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)); built-in default pool; names repeat across NPCs by design.
+- `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): mirror of naming's npc-types schema (typed set with categories, grounding, weights). Absent: built-in default set.
+- `namePool?`: given and family name arrays ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)); built-in default pool; names repeat across NPCs by design. Naming names places, not people, so this stays a simulation input.
 - `params?`: [src/schemas/params.ts](src/schemas/params.ts): statistical overrides, all defaulted from research.
 
 ## Out (CitySimulation)
@@ -53,6 +53,6 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 
 ## Depends on
 - ../atlas/CONTRACT.md (blueprint v0.2)
-- ../connections/CONTRACT.md (path networks; own fixture schema until it publishes)
+- ../connections/CONTRACT.md (networks.schema.json: walk + transit slice)
 - ../interior/CONTRACT.md (npc.schema.json)
-- ../naming/CONTRACT.md (NPC type strings; own fixture schema until it publishes)
+- ../naming/CONTRACT.md (npc-types.schema.json)

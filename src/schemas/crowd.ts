@@ -13,7 +13,7 @@ export type Activity =
   | 'leisure'
   | 'transit_wait';
 
-/** id required for every kind except city. */
+/** id required for every kind except city. edge = walk edge id (networks). */
 export interface CrowdScope {
   kind: 'city' | 'district' | 'edge' | 'stop' | 'parcel';
   id?: string;
@@ -48,4 +48,4 @@ export type PlaceRef =
   | { kind: 'edge'; id: string }
   | { kind: 'stop'; id: string }
   | { kind: 'parcel'; id: string }
-  | { kind: 'line'; id: string };
+  | { kind: 'route'; id: string };

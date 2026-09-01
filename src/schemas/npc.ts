@@ -59,7 +59,8 @@ export interface RoutineEntry {
 }
 
 export interface TransitLeg {
-  lineId: string;
+  /** Connections transit route id. */
+  routeId: string;
   boardStopId: string;
   alightStopId: string;
 }

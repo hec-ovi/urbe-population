@@ -1,34 +1,54 @@
 /**
- * NPC type surface. Naming owns the final schema (its Out); this fixture shape
- * stands in until naming publishes, then an adapter maps theirs onto this.
- * A built-in default type set ships for standalone runs.
+ * TypeScript mirror of ../naming/schema/npc-types.schema.json: the themed NPC
+ * type set the naming pass produces. A built-in default set ships for
+ * standalone runs. Personal name pools are separate (naming names places, not
+ * people); a built-in default pool ships and names repeat by design.
  */
 
 import type { ParcelType, WealthTier } from './blueprint.js';
-import type { InteriorRoleName } from './interiors.js';
+
+export interface NPCTypeSet {
+  meta: {
+    theme: string;
+    worldSeed: string | number;
+    createdAt: string;
+    model?: string;
+  };
+  types: NPCTypeDef[];
+}
 
 export interface NPCTypeDef {
-  /** Themed type string, e.g. "barista", "corpo_worker". */
+  /** Unique machine string, e.g. "dock_smuggler". */
   type: string;
+  label: string;
   category: NPCCategory;
-  /** Relative demographic weight within its category. */
+  /** Prompt boilerplate consumers use to instantiate an NPC of this type. */
+  boilerplate: string;
+  /** Short themed instantiation sketches for downstream few-shot use. */
+  examples?: string[];
+  /** What in the named world this type is anchored to. */
+  grounding: NPCGrounding;
+  /** Relative demographic weight within its category; normalized here. */
   weight: number;
-  /** Parcel types this type works at; worker category only. */
-  workplaceTypes?: ParcelType[];
-  /** Interior role this type staffs when the building has an NpcSupport instance. */
-  interiorRole?: InteriorRoleName;
-  /** Wealth tiers this type appears in; absent = all. */
-  tiers?: WealthTier[];
 }
 
 /**
- * worker: employed, has a job, shift and commute.
- * resident: home-centric, no job (unemployed, retired, homemaker).
- * transient: visitor feeding commerce and street crowds, no home in this city.
+ * Scheduling archetype per category:
+ * resident: home-centric, no job. worker: employed at a workplace parcel with
+ * shift and commute. vendor: staffs commerce counters. authority: police,
+ * military, security; patrols and night coverage. transit: drivers and station
+ * staff, tied to service hours. street: street presence, no job, may lack a home.
  */
-export type NPCCategory = 'worker' | 'resident' | 'transient';
+export type NPCCategory = 'resident' | 'worker' | 'vendor' | 'authority' | 'transit' | 'street';
 
-/** Names repeat across NPCs by design; pools may be themed by the naming layer. */
+export interface NPCGrounding {
+  /** District names from the named world. */
+  districts?: string[];
+  parcelTypes?: ParcelType[];
+  tiers?: WealthTier[];
+}
+
+/** Names repeat across NPCs by design. */
 export interface NamePool {
   given: string[];
   family: string[];
