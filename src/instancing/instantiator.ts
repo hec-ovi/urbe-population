@@ -8,15 +8,17 @@ import { rand } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftCoversTime } from '../population/jobs.js';
 import { parseHandle } from '../crowd/handles.js';
+import { pickGender } from './gender.js';
 import { pickName } from './names.js';
+import { inferGender, type ResolvedPool } from './name-pool.js';
 import { RoutineBuilder } from './routine.js';
 import { SimulationError } from '../schemas/errors.js';
 import type { Demographics } from '../population/demographics.js';
 import type { AssignmentModel, JobAssignment } from '../population/assignment.js';
+import type { ResolvedParams } from '../population/defaults.js';
 import type { Registry } from './registry.js';
 import type { WorldModel, Workplace } from '../world/model.js';
-import type { NamePool } from '../schemas/npc-types.js';
-import type { FamilyMember, NPCInstance, NPCName, ReservedSpec, VendorQuery } from '../schemas/npc.js';
+import type { FamilyMember, Gender, NPCInstance, NPCName, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 import type { CrowdAgent } from '../schemas/crowd.js';
 
 const ALIBI_ATTEMPTS = 128;
@@ -32,7 +34,8 @@ export class Instantiator {
     private readonly world: WorldModel,
     private readonly demo: Demographics,
     private readonly assignment: AssignmentModel,
-    private readonly namePool: NamePool,
+    private readonly params: ResolvedParams,
+    private readonly pool: ResolvedPool,
     private readonly registry: Registry,
   ) {
     this.routines = new RoutineBuilder(seed, world);
@@ -102,10 +105,11 @@ export class Instantiator {
   }
 
   reserve(spec: ReservedSpec): NPCInstance {
+    const gender = spec.gender ?? inferGender(this.pool, spec.name.given);
     let sawInstanced = false;
     for (let k = 0; k < RESERVE_ATTEMPTS; k++) {
       const adultIdx = rand(this.seed, 'reserve', spec.name.given, spec.name.family, k).int(this.demo.totalAdults);
-      if (!this.matchesSpec(adultIdx, spec)) continue;
+      if (!this.matchesSpec(adultIdx, spec, gender)) continue;
       if (this.registry.claimedAdults.has(adultIdx)) {
         sawInstanced = true;
         continue;
@@ -117,8 +121,9 @@ export class Instantiator {
     throw new SimulationError('E_NO_MATCH', 'no NPC matches the reservation spec');
   }
 
-  private matchesSpec(adultIdx: number, spec: ReservedSpec): boolean {
+  private matchesSpec(adultIdx: number, spec: ReservedSpec, gender: Gender | undefined): boolean {
     if (this.assignment.typeOfAdult(adultIdx).type !== spec.type) return false;
+    if (gender && this.genderOf(`a${adultIdx}`) !== gender) return false;
     const { groupIdx } = this.demo.locateAdult(adultIdx);
     if (spec.homeDistrictId && this.world.groups[groupIdx]!.districtId !== spec.homeDistrictId) return false;
     const job = this.assignment.jobOfAdult(adultIdx);
@@ -176,6 +181,7 @@ export class Instantiator {
     const instance: NPCInstance = {
       npcId,
       name: nameOverride ?? this.memberName(groupIdx, h, npcId),
+      gender: this.genderOf(npcId),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
       ...(job
@@ -214,6 +220,7 @@ export class Instantiator {
     const instance: NPCInstance = {
       npcId,
       name: this.memberName(groupIdx, h, npcId),
+      gender: this.genderOf(npcId),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
       family,
@@ -224,12 +231,17 @@ export class Instantiator {
     return instance;
   }
 
+  /** Fixed by npcId alone, so a stub and its full instance always agree. */
+  private genderOf(npcId: string): Gender {
+    return pickGender(this.seed, this.params.femaleShare, npcId);
+  }
+
   /** Couple and kid households share a family name; roommates keep their own. */
   private memberName(groupIdx: number, h: number, npcId: string): NPCName {
     const shape = this.demo.householdShape(groupIdx, h);
-    const own = pickName(this.seed, this.namePool, npcId);
+    const own = pickName(this.seed, this.pool, npcId, this.genderOf(npcId));
     if (shape.form === 'shared' || shape.form === 'single') return own;
-    const family = rand(this.seed, 'famname', groupIdx, h).pick(this.namePool.family);
+    const family = rand(this.seed, 'famname', groupIdx, h).pick(this.pool.family);
     return { given: own.given, family };
   }
 

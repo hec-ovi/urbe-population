@@ -27,7 +27,7 @@ export class NpcCard {
 
     this.panel.setLines([
       `${npc.name.given} ${npc.name.family} (${npc.npcId})`,
-      `type: ${npc.type}`,
+      `type: ${npc.type}, ${npc.gender}`,
       `home: ${npc.home.parcelId} unit ${npc.home.unit}`,
       `job: ${jobLine(npc)}`,
       npc.family.length ? `family:\n${family}` : 'family: none',

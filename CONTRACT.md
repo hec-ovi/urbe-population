@@ -2,7 +2,7 @@
 
 Purpose: statistical NPC population with lazy instantiation: crowds run cheap by type, a specific NPC gets a full deterministic life (home, job, family, routine, name) only on interaction, and stays persistent from then on.
 
-Status: v0.1 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
+Status: v0.4 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Time: integer minutes since world epoch (Monday 00:00). Day = floor(t / 1440) % 7, 0 = Monday; minute of day = t % 1440. Routines repeat weekly.
@@ -17,7 +17,7 @@ Status: v0.1 implemented and tested. Statistical defaults documented in docs/RES
 - `networks?`: [src/schemas/networks.ts](src/schemas/networks.ts): consumed slice of connections Networks (walk graph, timetabled transit routes). Absent: fallback derived from blueprint transit with default headways.
 - `interiors?`: [src/schemas/interiors.ts](src/schemas/interiors.ts): parcelId -> NpcSupport (mirror of ../interior/schemas/npc.schema.json). Absent: per-type synthetic role sets.
 - `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): mirror of naming's npc-types schema (typed set with categories, grounding, weights, embedded themed name pool). Absent: built-in default set.
-- `namePool?`: explicit override pool ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)). Precedence: this override, else the set's embedded pool, else the built-in default. Names repeat across NPCs by design.
+- `namePool?`: explicit override pool ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)). Precedence: this override, else the set's embedded pool, else the built-in default. Names repeat across NPCs by design. A pool carrying naming's `givenByGender` buckets is drawn per gender; a pool without them serves every NPC the whole `given` list.
 - `params?`: [src/schemas/params.ts](src/schemas/params.ts): statistical overrides, all defaulted from research.
 
 ## Out (CitySimulation)
@@ -30,7 +30,7 @@ Status: v0.1 implemented and tested. Statistical defaults documented in docs/RES
 - `behaviorAt(npcId, timeMin): BehaviorState`: state machine snapshot: interior anchor step or walk intent, street edge, transit leg, home. Interior path geometry stays with the host (interior ships findPath).
 - `interrupt(npcId, timeMin)` / `resume(npcId, timeMin)`: player interaction pauses the routine; resume continues it.
 - `applyFlag(npcId, op: FlagOp)`: resign, promote (reassigns job, moves home when tier changes), die (dead NPCs never match vendor or quest queries), custom tags.
-- `reserveNPC(spec: ReservedSpec): NPCInstance`: quest layer pre-instanced NPC with fixed name and type; consumes a real statistical slot.
+- `reserveNPC(spec: ReservedSpec): NPCInstance`: quest layer pre-instanced NPC with fixed name and type; consumes a real statistical slot. `spec.gender` is optional: absent, it comes from the name's own bucket in the pool, else either.
 - `serialize(): SimulationSave` / `restoreSimulation(input, save)`: persists the instanced set, flags and reservations; restore with identical inputs reproduces the exact state.
 
 ## Errors
@@ -47,6 +47,7 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - Same seed and inputs: identical populationStats and crowd for any query order.
 - Every blueprint district appears in populationStats.perDistrict and is a valid crowd scope, residents or not; districts without residents still carry their working population in crowds.
 - Same seed and same interaction order: identical instanced population.
+- Gender: every instance carries `male` or `female`, drawn against `params.femaleShare` (default 0.51) and fixed for an npc id whether the person is instanced or still a family stub. The given name comes from that gender's bucket, falling back to `neutral` and then to the whole pool when a bucket is empty, so a generated name and its gender always agree wherever the pool tags them.
 - Conservation: instanced NPCs never contradict aggregate stats; an assigned home unit, job slot or crowd identity is never reassigned; an instance never changes identity, home or family except through applyFlag.
 - Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs.
 - Staffing is a rota: posts (people on duty at once) x waves (shifts tiling the open span) x day crews (five days each, no overlap). An open place is staffed and vendor-queryable at every minute of its opening hours on every day it opens, with the same headcount on a Sunday as on a Tuesday, and empty when closed. Interior role [min, max] counts set the posts; 24/7 places get three waves plus security; night-only places staff night shifts; every staffed job maps to an employed resident with a commute.
@@ -58,4 +59,4 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - ../atlas/CONTRACT.md (blueprint v0.2)
 - ../connections/CONTRACT.md (networks.schema.json: walk + transit slice)
 - ../interior/CONTRACT.md (npc.schema.json)
-- ../naming/CONTRACT.md (npc-types.schema.json)
+- ../naming/CONTRACT.md (npc-types.schema.json, name pool with `givenByGender`)

@@ -9,6 +9,8 @@ export interface SimulationParams {
   occupancyRate?: number;
   /** Fraction of the labor force without a job. */
   unemploymentRate?: number;
+  /** Share of NPCs assigned female. 0 or 1 makes a single-gender population. */
+  femaleShare?: number;
   /** Household composition weights, normalized internally. */
   householdMix?: HouseholdMix;
   /** Work schedule weights, normalized internally. */

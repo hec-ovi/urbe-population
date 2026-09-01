@@ -5,14 +5,20 @@
 
 import type { NPCTypeSet } from '../schemas/npc-types.js';
 
+/** Unisex names: they sit in the neutral bucket and in both gendered ones. */
+const UNISEX = ['Alex', 'Sam', 'Jordan', 'Casey', 'Riley', 'Morgan', 'Quinn', 'Avery', 'Dana', 'Reese'];
+const MALE = ['Marco', 'Theo', 'Felix', 'Oscar', 'Hugo', 'Elias', 'Ruben'];
+const FEMALE = ['Lena', 'Ivy', 'Nora', 'Mira', 'Petra', 'Sofia', 'Clara'];
+
 export const DEFAULT_TYPE_SET: NPCTypeSet = {
   meta: { theme: 'generic-modern', worldSeed: 'default', createdAt: '2026-08-31' },
   namePool: {
-    given: [
-      'Alex', 'Sam', 'Jordan', 'Casey', 'Riley', 'Morgan', 'Quinn', 'Avery', 'Dana', 'Reese',
-      'Lena', 'Marco', 'Ivy', 'Theo', 'Nora', 'Felix', 'Mira', 'Oscar', 'Petra', 'Hugo',
-      'Sofia', 'Elias', 'Clara', 'Ruben',
-    ],
+    given: [...UNISEX, ...MALE, ...FEMALE],
+    givenByGender: {
+      male: [...MALE, ...UNISEX],
+      female: [...FEMALE, ...UNISEX],
+      neutral: [...UNISEX],
+    },
     family: [
       'Reyes', 'Okafor', 'Lindqvist', 'Tanaka', 'Moreau', 'Kovacs', 'Silva', 'Novak', 'Haddad', 'Petrov',
       'Larsen', 'Iglesias', 'Duarte', 'Kim', 'Weber', 'Rossi', 'Nakamura', 'Costa', 'Berg', 'Farah',

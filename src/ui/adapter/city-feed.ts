@@ -176,6 +176,7 @@ function toNpcSummary(npc: NPCInstance): NpcSummary {
   return {
     npcId: npc.npcId,
     name: { given: npc.name.given, family: npc.name.family },
+    gender: npc.gender,
     type: npc.type,
     home: { parcelId: npc.home.parcelId, unit: npc.home.unit },
     job: npc.job

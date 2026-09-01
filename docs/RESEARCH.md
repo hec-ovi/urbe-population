@@ -17,6 +17,7 @@ IPF and friends need microdata samples and materialize whole tables; the sample-
 
 ## Statistical defaults (in src/population/defaults.ts)
 - Households (ACS 2024): 1p 28.9%, 2p 34.2%, 3p 15.3%, 4p 12.3%, 5p 5.7%, 6p 2.2%, 7+ 1.5%; average 2.50.
+- Sex ratio (UN WPP 2024, national censuses): city populations sit close to even and tilt slightly female because women live longer; 51% female is the default (`params.femaleShare`), and a theme can move it.
 - Labor (ACS/BLS 2024-26): of adults, 64% in labor force; unemployment ~4.1%; 36% not in labor force (retirees, students, carers) and they need daytime whereabouts too.
 - Shifts (BLS ATUS): 16% non-daytime usual schedule: 6% evening, 4% night, 6% rotating/other. Concentrated in hospitality (37%), transport/utilities (26%), retail (25%), protective services (47% any overnight).
 - Departure times (ACS B08302): 14-bucket curve, peak 7:00-7:29 at 14.3%; 5.5% leave between midnight and 5 a.m.

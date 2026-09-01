@@ -1,10 +1,20 @@
 /** Input validation: every failure is E_INVALID_INPUT naming the field. */
 
 import { SimulationError } from '../schemas/errors.js';
+import { resolvePool } from '../instancing/name-pool.js';
+import type { NamePool } from '../schemas/npc-types.js';
 import type { SimulationInput } from './simulation.js';
 
 function fail(field: string, why: string): never {
   throw new SimulationError('E_INVALID_INPUT', `${field}: ${why}`, { field });
+}
+
+/** Every gender must have given names to draw from, and a family list. */
+function checkPool(field: string, pool: NamePool): void {
+  const resolved = resolvePool(pool);
+  if (resolved.given.male.length === 0 || resolved.given.female.length === 0 || resolved.family.length === 0) {
+    fail(field, 'given and family pools must be non-empty');
+  }
 }
 
 export function validateInput(input: SimulationInput): void {
@@ -41,13 +51,9 @@ export function validateInput(input: SimulationInput): void {
     for (const t of input.npcTypes.types) {
       if (!(t.weight > 0)) fail(`npcTypes.types.${t.type}.weight`, 'must be > 0');
     }
-    if (input.npcTypes.namePool.given.length === 0 || input.npcTypes.namePool.family.length === 0) {
-      fail('npcTypes.namePool', 'given and family pools must be non-empty');
-    }
+    checkPool('npcTypes.namePool', input.npcTypes.namePool);
   }
-  if (input.namePool && (input.namePool.given.length === 0 || input.namePool.family.length === 0)) {
-    fail('namePool', 'given and family pools must be non-empty');
-  }
+  if (input.namePool) checkPool('namePool', input.namePool);
 
   const p = input.params;
   if (p) {
@@ -56,5 +62,6 @@ export function validateInput(input: SimulationInput): void {
       if (v !== undefined && !(v > 0 && v <= 1)) fail(`params.${key}`, 'must be in (0, 1]');
     }
     if (p.streetDensity !== undefined && !(p.streetDensity >= 0)) fail('params.streetDensity', 'must be >= 0');
+    if (p.femaleShare !== undefined && !(p.femaleShare >= 0 && p.femaleShare <= 1)) fail('params.femaleShare', 'must be in [0, 1]');
   }
 }

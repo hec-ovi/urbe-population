@@ -31,7 +31,7 @@ Time is integer minutes since a Monday midnight epoch; routines repeat weekly.
 
 - **`populationStats()`**: residents, households, employment and NPC type counts per district and tier.
 - **`crowd(time, scope)`**: typed counts for a city, district, street edge, transit stop or parcel, plus a deterministic capped sample of agents. Every agent id is a handle that instantiates that exact person; parcel agents are the on-duty workers. How many people are outdoors at a given hour follows real time-use statistics, and `params.streetDensity` scales it for a busier or quieter city.
-- **`instantiate(handle)` / `getNPCVendor(query)` / `findNPCs(query)`**: a full NPC life, conditioned on everyone already instantiated. Home unit, job with shift, family, name, bus line, and a gapless weekly routine.
+- **`instantiate(handle)` / `getNPCVendor(query)` / `findNPCs(query)`**: a full NPC life, conditioned on everyone already instantiated. Home unit, job with shift, family, name, gender, bus line, and a gapless weekly routine.
 - **`behaviorAt(npcId, time)`**: where that person is and what they are doing right now, as an interior anchor step, a walk intent, a street edge, a transit leg or home.
 - **`interrupt` / `resume`**: player interaction pauses a routine and puts it back.
 - **`applyFlag`**: resign, promote (which reassigns the job and moves the home when the tier changes), die, or custom tags. Dead NPCs stop matching vendor and quest queries.

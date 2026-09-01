@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createSimulation, restoreSimulation, SimulationError } from './index.js';
+import { createSimulation, restoreSimulation, DEFAULT_TYPE_SET, SimulationError } from './index.js';
 import { FIXTURE_BLUEPRINT, FIXTURE_INTERIORS } from './fixtures/small-city.js';
 import type { CitySimulation, NPCInstance, SimulationInput } from './index.js';
 
@@ -251,6 +251,49 @@ describe('lazy instantiation', () => {
   });
 });
 
+/** Instances taken in a fixed order, enough of them to see both genders. */
+function sample(sim: CitySimulation, n = 40): NPCInstance[] {
+  const out: NPCInstance[] = [];
+  for (let i = 0; i < n; i++) out.push(sim.instantiate({ npcId: `a${i}` }));
+  return out;
+}
+
+describe('gender', () => {
+  it('gives every NPC a gender and draws the given name from that gender bucket', () => {
+    const buckets = DEFAULT_TYPE_SET.namePool.givenByGender!;
+    const genders = new Set<string>();
+    for (const npc of sample(make())) {
+      genders.add(npc.gender);
+      expect(buckets[npc.gender]).toContain(npc.name.given);
+    }
+    expect(genders).toEqual(new Set(['male', 'female']));
+  });
+
+  it('draws from the whole pool when the pool carries no gender buckets', () => {
+    const namePool = { given: ['Wren', 'Sasha', 'Noor', 'Kit'], family: ['Vale', 'Orsi'] };
+    const genders = new Set<string>();
+    for (const npc of sample(createSimulation({ ...makeInput(), namePool }))) {
+      genders.add(npc.gender);
+      expect(namePool.given).toContain(npc.name.given);
+    }
+    expect(genders).toEqual(new Set(['male', 'female']));
+  });
+
+  it('holds gender fixed per NPC across sims and through a save', () => {
+    const a = make();
+    const b = make();
+    expect(sample(a).map((n) => n.gender)).toEqual(sample(b).map((n) => n.gender));
+    const vendor = a.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
+    const restored = restoreSimulation(makeInput(), a.serialize());
+    expect(restored.getNPC(vendor.npcId).gender).toBe(vendor.gender);
+  });
+
+  it('params.femaleShare steers the mix', () => {
+    const sim = createSimulation({ ...makeInput(), params: { femaleShare: 1 } });
+    expect(sample(sim, 10).every((n) => n.gender === 'female')).toBe(true);
+  });
+});
+
 /** One workplace of every staffed kind, with hours inside and outside its rota. */
 const VENUES: { id: string; open: number[]; closed: number[] }[] = [
   { id: 'p_cafe', open: [7, 12, 17], closed: [3, 20] },
@@ -428,8 +471,9 @@ describe('flags', () => {
 describe('reservations', () => {
   it('reserves a pre-instanced NPC with a fixed name and real statistical slot', () => {
     const sim = make();
-    const reserved = sim.reserveNPC({ name: { given: 'Vesna', family: 'Ilic' }, type: 'resident_low' });
+    const reserved = sim.reserveNPC({ name: { given: 'Vesna', family: 'Ilic' }, gender: 'female', type: 'resident_low' });
     expect(reserved.name).toEqual({ given: 'Vesna', family: 'Ilic' });
+    expect(reserved.gender).toBe('female');
     expect(reserved.type).toBe('resident_low');
     expect(sim.getNPC(reserved.npcId).name.given).toBe('Vesna');
   });

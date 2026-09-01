@@ -11,9 +11,13 @@ export interface NPCName {
   family: string;
 }
 
+/** What the host renders as a body. Drawn against the sex ratio per NPC. */
+export type Gender = 'male' | 'female';
+
 export interface NPCInstance {
   npcId: string;
   name: NPCName;
+  gender: Gender;
   type: string;
   home: { parcelId: string; unit: number };
   job?: Job;
@@ -109,6 +113,8 @@ export interface NPCQuery {
 /** Quest layer reservation: pre-instanced NPC with fixed identity. */
 export interface ReservedSpec {
   name: NPCName;
+  /** Absent: taken from the pool's tag for the given name, else either. */
+  gender?: Gender;
   type: string;
   homeDistrictId?: string;
   jobParcelId?: string;

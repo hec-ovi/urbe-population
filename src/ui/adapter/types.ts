@@ -58,6 +58,7 @@ export interface CrowdDot {
 export interface NpcSummary {
   npcId: string;
   name: PersonName;
+  gender: string;
   type: string;
   home: { parcelId: string; unit: number };
   job: JobSummary | null;

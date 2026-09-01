@@ -11,6 +11,7 @@ import { buildStats } from '../population/stats.js';
 import { resolveParams, type ResolvedParams } from '../population/defaults.js';
 import { CrowdModel } from '../crowd/model.js';
 import { Instantiator } from '../instancing/instantiator.js';
+import { resolvePool } from '../instancing/name-pool.js';
 import { RoutineBuilder } from '../instancing/routine.js';
 import { Registry, type SaveEvent, type SimulationSave } from '../instancing/registry.js';
 import { BehaviorModel } from '../behavior/model.js';
@@ -60,7 +61,7 @@ export class CitySimulation {
     }
     this.demo = new Demographics(input.seed, this.world, this.params);
     this.assignment = new AssignmentModel(input.seed, this.world, this.demo, typeSet, this.params);
-    this.instantiator = new Instantiator(input.seed, this.world, this.demo, this.assignment, namePool, this.registry);
+    this.instantiator = new Instantiator(input.seed, this.world, this.demo, this.assignment, this.params, resolvePool(namePool), this.registry);
     this.behavior = new BehaviorModel(input.seed, this.world, this.registry);
     this.typeSet = typeSet;
   }

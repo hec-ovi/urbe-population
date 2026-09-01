@@ -53,6 +53,20 @@ export interface NPCGrounding {
 
 /** Names repeat across NPCs by design. */
 export interface NamePool {
+  /** Every given name in the pool: the deduped union of the gender buckets. */
   given: string[];
+  /**
+   * Given names per gender (naming 0.3). Buckets may overlap: a unisex name
+   * belongs to several. Absent on an untagged pool, and then everyone draws
+   * from `given`.
+   */
+  givenByGender?: GivenByGender;
   family: string[];
+}
+
+export interface GivenByGender {
+  male: string[];
+  female: string[];
+  /** Names that fit anyone; an all-neutral theme puts every name here. */
+  neutral: string[];
 }
