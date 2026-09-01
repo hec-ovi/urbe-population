@@ -1,12 +1,15 @@
 /**
  * Cheap crowd layer: closed-form typed counts per scope and time, plus a
  * deterministic capped sample of pseudo-agents for every scope kind, each
- * carrying an instantiation handle. Query cost is independent of population.
+ * carrying an instantiation handle. Query cost is independent of population
+ * and of edge count when sampling is off (maxAgents 0). District group tables
+ * are memoized per timestamp and per-edge counts use a string-free hash, so
+ * the sampled path stays flat on large cities.
  * Street presence of worker categories follows the work district (commute
  * peaks around shifts, from the ACS departure curve); residents follow home.
  */
 
-import { hash01, rand } from '../core/rng.js';
+import { hash01, mix01, rand, streamKey } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftCoversTime } from '../population/jobs.js';
 import { edgeHandle, parcelHandle, parseHandle } from './handles.js';
@@ -26,6 +29,12 @@ interface DistrictCrowdBase {
   workTypeCounts: Record<string, number>;
   edges: CrowdEdge[];
   edgeLengthTotal: number;
+}
+
+interface DistrictGroups {
+  t: number;
+  groups: CrowdGroup[];
+  total: number;
 }
 
 type Curve = [number, number][];
@@ -61,6 +70,9 @@ function curveAt(curve: Curve, m: number): number {
 export class CrowdModel {
   private readonly districts = new Map<string, DistrictCrowdBase>();
   private readonly categoryByType = new Map<string, NPCCategory>();
+  private readonly edgeIndex = new Map<string, number>();
+  private readonly groupsCache = new Map<string, DistrictGroups>();
+  private readonly fastKey: number;
 
   constructor(
     private readonly seed: string | number,
@@ -70,7 +82,9 @@ export class CrowdModel {
     private readonly params: ResolvedParams,
     private readonly assignment: AssignmentModel,
   ) {
+    this.fastKey = streamKey(seed, 'crowd');
     for (const t of typeSet.types) this.categoryByType.set(t.type, t.category);
+    world.crowdEdges.forEach((e, i) => this.edgeIndex.set(e.id, i));
     for (const d of stats.perDistrict) {
       const typeCounts: Record<string, number> = {};
       for (const tier of Object.values(d.byTier)) {
@@ -102,26 +116,20 @@ export class CrowdModel {
     const maxAgents = opts?.maxAgents ?? DEFAULT_MAX_AGENTS;
     switch (scope.kind) {
       case 'city': {
-        const groups = new Map<string, CrowdGroup>();
-        for (const base of this.districts.values()) this.accumulate(groups, base, timeMin, 1);
-        return { timeMin, scope, groups: [...groups.values()], agents: this.edgeSample(this.world.crowdEdges, timeMin, maxAgents) };
+        const merged = new Map<string, CrowdGroup>();
+        for (const base of this.districts.values()) mergeInto(merged, this.districtGroupsAt(base, timeMin).groups);
+        return { timeMin, scope, groups: [...merged.values()], agents: this.edgeSample(this.world.crowdEdges, timeMin, maxAgents) };
       }
       case 'district': {
         const base = this.districts.get(scope.id ?? '');
         if (!base) throw new SimulationError('E_UNKNOWN_ID', `no district ${scope.id}`);
-        const groups = new Map<string, CrowdGroup>();
-        this.accumulate(groups, base, timeMin, 1);
-        return { timeMin, scope, groups: [...groups.values()], agents: this.edgeSample(base.edges, timeMin, maxAgents) };
+        const { groups } = this.districtGroupsAt(base, timeMin);
+        return { timeMin, scope, groups, agents: this.edgeSample(base.edges, timeMin, maxAgents) };
       }
       case 'edge': {
-        const edge = this.world.crowdEdges.find((e) => e.id === scope.id);
+        const edge = this.edgeById(scope.id ?? '');
         if (!edge) throw new SimulationError('E_UNKNOWN_ID', `no walk edge ${scope.id}`);
-        return {
-          timeMin,
-          scope,
-          groups: this.edgeGroups(edge, timeMin),
-          agents: this.edgeSample([edge], timeMin, maxAgents),
-        };
+        return { timeMin, scope, groups: this.edgeGroups(edge, timeMin), agents: this.edgeSample([edge], timeMin, maxAgents) };
       }
       case 'stop': {
         const stop = this.world.stopsById.get(scope.id ?? '');
@@ -175,13 +183,14 @@ export class CrowdModel {
     const h = parseHandle(crowdId);
     if (!h) return undefined;
     if (h.kind === 'edge') {
-      const edge = this.world.crowdEdges.find((e) => e.id === h.id);
+      const edge = this.edgeById(h.id);
       if (!edge) return undefined;
-      const period = this.edgePeriod(edge);
-      if (Math.floor(timeMin / period) !== h.epoch) return undefined;
-      const groups = this.edgeGroups(edge, timeMin);
-      if (h.slot >= groups.reduce((s, g) => s + g.count, 0)) return undefined;
-      return this.edgeAgent(edge, h.slot, h.epoch, timeMin, groups);
+      if (Math.floor(timeMin / this.edgePeriod(edge)) !== h.epoch) return undefined;
+      const base = this.districts.get(edge.districtId);
+      if (!base) return undefined;
+      const dg = this.districtGroupsAt(base, timeMin);
+      if (h.slot >= this.edgeCount(edge, base, dg.total, timeMin)) return undefined;
+      return this.edgeAgent(edge, h.slot, h.epoch, timeMin, dg.groups);
     }
     if (h.kind === 'stop') {
       if (!this.world.stopsById.has(h.id)) return undefined;
@@ -206,15 +215,52 @@ export class CrowdModel {
     };
   }
 
+  private edgeById(id: string): CrowdEdge | undefined {
+    const i = this.edgeIndex.get(id);
+    return i === undefined ? undefined : this.world.crowdEdges[i];
+  }
+
+  /** District group table, memoized per timestamp (the engine polls one t across scopes). */
+  private districtGroupsAt(base: DistrictCrowdBase, timeMin: number): DistrictGroups {
+    const cached = this.groupsCache.get(base.districtId);
+    if (cached && cached.t === timeMin) return cached;
+    const map = new Map<string, CrowdGroup>();
+    this.accumulate(map, base, timeMin, 1);
+    const groups = [...map.values()];
+    const entry: DistrictGroups = { t: timeMin, groups, total: groups.reduce((s, g) => s + g.count, 0) };
+    this.groupsCache.set(base.districtId, entry);
+    return entry;
+  }
+
   private edgePeriod(edge: CrowdEdge): number {
     return Math.max(2, Math.round(edge.lengthM / 80));
   }
 
+  /** Deterministic pedestrian count on one edge: district total scaled by length share. */
+  private edgeCount(edge: CrowdEdge, base: DistrictCrowdBase, districtTotal: number, timeMin: number): number {
+    if (base.edgeLengthTotal <= 0) return 0;
+    const raw = (districtTotal * edge.lengthM) / base.edgeLengthTotal;
+    const whole = Math.floor(raw);
+    const extra = mix01(this.fastKey, this.edgeIndex.get(edge.id) ?? 0, Math.floor(timeMin / 60), 7) < raw - whole ? 1 : 0;
+    return whole + extra;
+  }
+
+  /** Edge-scope display counts: district groups scaled to the edge's share. */
   private edgeGroups(edge: CrowdEdge, timeMin: number): CrowdGroup[] {
     const base = this.districts.get(edge.districtId);
-    const groups = new Map<string, CrowdGroup>();
-    if (base && base.edgeLengthTotal > 0) this.accumulate(groups, base, timeMin, edge.lengthM / base.edgeLengthTotal);
-    return [...groups.values()];
+    if (!base || base.edgeLengthTotal <= 0) return [];
+    const share = edge.lengthM / base.edgeLengthTotal;
+    const edgeIdx = this.edgeIndex.get(edge.id) ?? 0;
+    const out: CrowdGroup[] = [];
+    const dg = this.districtGroupsAt(base, timeMin);
+    dg.groups.forEach((g, gi) => {
+      const raw = g.count * share;
+      const whole = Math.floor(raw);
+      const extra = mix01(this.fastKey, edgeIdx, Math.floor(timeMin / 60), gi) < raw - whole ? 1 : 0;
+      const n = whole + extra;
+      if (n > 0) out.push({ type: g.type, activity: g.activity, count: n });
+    });
+    return out;
   }
 
   private edgeAgent(edge: CrowdEdge, slot: number, epoch: number, timeMin: number, groups: CrowdGroup[]): CrowdAgent {
@@ -235,17 +281,28 @@ export class CrowdModel {
   /** Deterministic sample across edges, proportional to their counts. */
   private edgeSample(edges: CrowdEdge[], timeMin: number, maxAgents: number): CrowdAgent[] {
     if (maxAgents <= 0 || edges.length === 0) return [];
-    const perEdge = edges.map((edge) => {
-      const groups = this.edgeGroups(edge, timeMin);
-      return { edge, groups, total: groups.reduce((s, g) => s + g.count, 0) };
-    });
-    const totalAll = perEdge.reduce((s, e) => s + e.total, 0);
+    let totalAll = 0;
+    const counts = new Array<number>(edges.length);
+    for (let i = 0; i < edges.length; i++) {
+      const edge = edges[i]!;
+      const base = this.districts.get(edge.districtId);
+      if (!base) {
+        counts[i] = 0;
+        continue;
+      }
+      const dg = this.districtGroupsAt(base, timeMin);
+      counts[i] = this.edgeCount(edge, base, dg.total, timeMin);
+      totalAll += counts[i]!;
+    }
     if (totalAll === 0) return [];
     const agents: CrowdAgent[] = [];
-    for (const { edge, groups, total } of perEdge) {
-      if (agents.length >= maxAgents || total === 0) continue;
+    for (let i = 0; i < edges.length && agents.length < maxAgents; i++) {
+      const total = counts[i]!;
+      if (total === 0) continue;
+      const edge = edges[i]!;
       const quota = Math.min(total, Math.max(1, Math.round((maxAgents * total) / totalAll)), maxAgents - agents.length);
       const epoch = Math.floor(timeMin / this.edgePeriod(edge));
+      const groups = this.districtGroupsAt(this.districts.get(edge.districtId)!, timeMin).groups;
       for (let slot = 0; slot < quota; slot++) agents.push(this.edgeAgent(edge, slot, epoch, timeMin, groups));
     }
     return agents;
@@ -307,5 +364,14 @@ export class CrowdModel {
       const fraction = weekend ? curveAt(RESIDENT_OUT, m) : curveAt(WORKER_COMMUTE, m);
       add(type, count, fraction, forceActivity ?? (m >= 660 && m < 840 ? 'leisure' : 'commuting'));
     }
+  }
+}
+
+function mergeInto(target: Map<string, CrowdGroup>, groups: CrowdGroup[]): void {
+  for (const g of groups) {
+    const key = `${g.type}:${g.activity}`;
+    const cur = target.get(key);
+    if (cur) cur.count += g.count;
+    else target.set(key, { type: g.type, activity: g.activity, count: g.count });
   }
 }

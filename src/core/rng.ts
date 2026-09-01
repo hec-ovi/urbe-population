@@ -83,3 +83,17 @@ export function rand(seed: string | number, ...key: (string | number)[]): Rand {
 export function hash01(seed: string | number, ...key: (string | number)[]): number {
   return rand(seed, ...key).next();
 }
+
+/** 32-bit stream key for the numeric fast path. */
+export function streamKey(seed: string | number, tag: string): number {
+  return new Rand(`${seed}${SEP}${tag}`).next() * 4294967296;
+}
+
+/** Uniform [0, 1) from integers only: no string allocation, for hot paths. */
+export function mix01(key32: number, a: number, b: number, c: number): number {
+  let t = (key32 ^ Math.imul(a + 1, 0x9e3779b9) ^ Math.imul(b + 1, 0x85ebca6b) ^ Math.imul(c + 1, 0xc2b2ae35)) | 0;
+  t = Math.imul(t ^ (t >>> 15), 0x2c1b3c6d);
+  t = Math.imul(t ^ (t >>> 12), 0x297a2d39);
+  t ^= t >>> 15;
+  return (t >>> 0) / 4294967296;
+}

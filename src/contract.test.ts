@@ -107,6 +107,13 @@ describe('crowd layer', () => {
     expect(commute.groups.reduce((s, g) => s + g.count, 0)).toBeGreaterThan(0);
   });
 
+  it('maxAgents 0 is a count-only call returning no agents', () => {
+    const sim = make();
+    const slice = sim.crowd(MON_NOON, { kind: 'city' }, { maxAgents: 0 });
+    expect(slice.agents).toEqual([]);
+    expect(slice.groups.length).toBeGreaterThan(0);
+  });
+
   it('every scope kind returns sampled instantiable agents capped by maxAgents', () => {
     const sim = make();
     const city = sim.crowd(MON_NOON, { kind: 'city' });
