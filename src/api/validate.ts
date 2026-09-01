@@ -62,6 +62,9 @@ export function validateInput(input: SimulationInput): void {
       if (v !== undefined && !(v > 0 && v <= 1)) fail(`params.${key}`, 'must be in (0, 1]');
     }
     if (p.streetDensity !== undefined && !(p.streetDensity >= 0)) fail('params.streetDensity', 'must be >= 0');
-    if (p.femaleShare !== undefined && !(p.femaleShare >= 0 && p.femaleShare <= 1)) fail('params.femaleShare', 'must be in [0, 1]');
+    for (const key of ['femaleShare', 'sameGenderCoupleShare'] as const) {
+      const v = p[key];
+      if (v !== undefined && !(v >= 0 && v <= 1)) fail(`params.${key}`, 'must be in [0, 1]');
+    }
   }
 }

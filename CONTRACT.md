@@ -2,7 +2,7 @@
 
 Purpose: statistical NPC population with lazy instantiation: crowds run cheap by type, a specific NPC gets a full deterministic life (home, job, family, routine, name) only on interaction, and stays persistent from then on.
 
-Status: v0.4 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
+Status: v0.4.1 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Time: integer minutes since world epoch (Monday 00:00). Day = floor(t / 1440) % 7, 0 = Monday; minute of day = t % 1440. Routines repeat weekly.
@@ -47,7 +47,7 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - Same seed and inputs: identical populationStats and crowd for any query order.
 - Every blueprint district appears in populationStats.perDistrict and is a valid crowd scope, residents or not; districts without residents still carry their working population in crowds.
 - Same seed and same interaction order: identical instanced population.
-- Gender: every instance carries `male` or `female`, drawn against `params.femaleShare` (default 0.51) and fixed for an npc id whether the person is instanced or still a family stub. The given name comes from that gender's bucket, falling back to `neutral` and then to the whole pool when a bucket is empty, so a generated name and its gender always agree wherever the pool tags them.
+- Gender: every instance carries `male` or `female`, fixed for an npc id whether the person is instanced or still a family stub. Singles, lone parents, roommates and kids draw individually against `params.femaleShare` (default 0.51). A couple is one draw per household instead: mixed-gender unless the household falls in `params.sameGenderCoupleShare` (default 0.03, the city rate in docs/RESEARCH.md), so the pair reads the same whichever partner is instantiated first. Paired adults come out near 50/50 by construction, so the whole-population female share sits a few tenths below `femaleShare`. The given name comes from that gender's bucket, falling back to `neutral` and then to the whole pool when a bucket is empty, so a generated name and its gender always agree wherever the pool tags them.
 - Conservation: instanced NPCs never contradict aggregate stats; an assigned home unit, job slot or crowd identity is never reassigned; an instance never changes identity, home or family except through applyFlag.
 - Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs.
 - Staffing is a rota: posts (people on duty at once) x waves (shifts tiling the open span) x day crews (five days each, no overlap). An open place is staffed and vendor-queryable at every minute of its opening hours on every day it opens, with the same headcount on a Sunday as on a Tuesday, and empty when closed. Interior role [min, max] counts set the posts; 24/7 places get three waves plus security; night-only places staff night shifts; every staffed job maps to an employed resident with a commute.

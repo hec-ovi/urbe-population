@@ -11,6 +11,13 @@ export interface SimulationParams {
   unemploymentRate?: number;
   /** Share of NPCs assigned female. 0 or 1 makes a single-gender population. */
   femaleShare?: number;
+  /**
+   * Share of couple households whose two partners share a gender. Drawn once
+   * per household, so partner genders are not independent (see
+   * docs/RESEARCH.md). Roommates, singles and kids keep the individual
+   * `femaleShare` draw.
+   */
+  sameGenderCoupleShare?: number;
   /** Household composition weights, normalized internally. */
   householdMix?: HouseholdMix;
   /** Work schedule weights, normalized internally. */

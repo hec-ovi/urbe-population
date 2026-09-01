@@ -11,6 +11,7 @@ export interface ResolvedParams {
   occupancyRate: number;
   unemploymentRate: number;
   femaleShare: number;
+  sameGenderCoupleShare: number;
   laborForceParticipation: number;
   householdMix: { single: number; couple: number; coupleKids: number; singleParent: number; shared: number };
   shiftMix: { day: number; evening: number; night: number; rotating: number };
@@ -23,6 +24,7 @@ export function resolveParams(params?: SimulationParams): ResolvedParams {
     occupancyRate: params?.occupancyRate ?? 0.55,
     unemploymentRate: params?.unemploymentRate ?? 0.041,
     femaleShare: params?.femaleShare ?? 0.51,
+    sameGenderCoupleShare: params?.sameGenderCoupleShare ?? 0.03,
     laborForceParticipation: 0.64,
     householdMix: {
       single: params?.householdMix?.single ?? 0.29,

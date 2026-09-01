@@ -8,12 +8,12 @@ import { rand } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftCoversTime } from '../population/jobs.js';
 import { parseHandle } from '../crowd/handles.js';
-import { pickGender } from './gender.js';
+import { pickCoupleGender, pickGender } from './gender.js';
 import { pickName } from './names.js';
 import { inferGender, type ResolvedPool } from './name-pool.js';
 import { RoutineBuilder } from './routine.js';
 import { SimulationError } from '../schemas/errors.js';
-import type { Demographics } from '../population/demographics.js';
+import type { Demographics, HouseholdForm } from '../population/demographics.js';
 import type { AssignmentModel, JobAssignment } from '../population/assignment.js';
 import type { ResolvedParams } from '../population/defaults.js';
 import type { Registry } from './registry.js';
@@ -21,6 +21,8 @@ import type { WorldModel, Workplace } from '../world/model.js';
 import type { FamilyMember, Gender, NPCInstance, NPCName, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 import type { CrowdAgent } from '../schemas/crowd.js';
 
+const ADULT_ID = /^a(\d+)$/;
+const COUPLE_FORMS = new Set<HouseholdForm>(['couple', 'coupleKids']);
 const ALIBI_ATTEMPTS = 128;
 const ALIBI_STRICT_ATTEMPTS = 64;
 const RESERVE_ATTEMPTS = 512;
@@ -44,7 +46,7 @@ export class Instantiator {
   byNpcId(npcId: string): NPCInstance {
     const existing = this.registry.instances.get(npcId);
     if (existing) return existing;
-    const adult = /^a(\d+)$/.exec(npcId);
+    const adult = ADULT_ID.exec(npcId);
     if (adult) {
       const idx = Number(adult[1]);
       if (idx >= this.demo.totalAdults) throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
@@ -231,8 +233,19 @@ export class Instantiator {
     return instance;
   }
 
-  /** Fixed by npcId alone, so a stub and its full instance always agree. */
+  /**
+   * Resolved from the npc id alone, so a stub and its full instance always
+   * agree: partners come from their household's one couple draw, everyone
+   * else from their own.
+   */
   private genderOf(npcId: string): Gender {
+    const adult = ADULT_ID.exec(npcId);
+    if (adult) {
+      const { groupIdx, h, member } = this.demo.locateAdult(Number(adult[1]));
+      if (COUPLE_FORMS.has(this.demo.householdShape(groupIdx, h).form)) {
+        return pickCoupleGender(this.seed, this.params, `${groupIdx}.${h}`, member);
+      }
+    }
     return pickGender(this.seed, this.params.femaleShare, npcId);
   }
 

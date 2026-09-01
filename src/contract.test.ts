@@ -6,15 +6,15 @@
 import { describe, expect, it } from 'vitest';
 import { createSimulation, restoreSimulation, DEFAULT_TYPE_SET, SimulationError } from './index.js';
 import { FIXTURE_BLUEPRINT, FIXTURE_INTERIORS } from './fixtures/small-city.js';
-import type { CitySimulation, NPCInstance, SimulationInput } from './index.js';
+import type { CitySimulation, NPCInstance, SimulationInput, SimulationParams } from './index.js';
 
 const SEED = 'urbe-test-1';
 const MON_9 = 9 * 60;
 const MON_NOON = 12 * 60;
 const MON_3AM = 3 * 60;
 
-function makeInput(): SimulationInput {
-  return { seed: SEED, blueprint: FIXTURE_BLUEPRINT, interiors: FIXTURE_INTERIORS };
+function makeInput(params?: SimulationParams): SimulationInput {
+  return { seed: SEED, blueprint: FIXTURE_BLUEPRINT, interiors: FIXTURE_INTERIORS, ...(params ? { params } : {}) };
 }
 
 function make(): CitySimulation {
@@ -292,7 +292,72 @@ describe('gender', () => {
     const sim = createSimulation({ ...makeInput(), params: { femaleShare: 1 } });
     expect(sample(sim, 10).every((n) => n.gender === 'female')).toBe(true);
   });
+
+  it("holds a couple's genders whichever partner is instantiated first", () => {
+    const [one, two] = firstCouple(make());
+    const reverse = make();
+    expect(reverse.instantiate({ npcId: two.npcId }).gender).toBe(two.gender);
+    expect(reverse.instantiate({ npcId: one.npcId }).gender).toBe(one.gender);
+  });
+
+  it('draws a couple once per household, so same-gender couples track the parameter', () => {
+    const mix = coupleMix(crowdedInput());
+    expect(mix.couples).toBeGreaterThan(1500);
+    expect(mix.sameShare).toBeGreaterThan(0.015);
+    expect(mix.sameShare).toBeLessThan(0.05);
+    expect(mix.femaleShare).toBeGreaterThan(0.49);
+    expect(mix.femaleShare).toBeLessThan(0.52);
+  });
+
+  it('params.sameGenderCoupleShare steers the couple mix', () => {
+    expect(coupleMix(makeInput({ sameGenderCoupleShare: 0 })).sameShare).toBe(0);
+    expect(coupleMix(makeInput({ sameGenderCoupleShare: 1 })).sameShare).toBe(1);
+  });
 });
+
+/** The first couple in the city, both partners instanced. */
+function firstCouple(sim: CitySimulation): [NPCInstance, NPCInstance] {
+  for (let i = 0; i < 200; i++) {
+    const npc = sim.instantiate({ npcId: `a${i}` });
+    const partner = npc.family.find((f) => f.relation === 'partner');
+    if (partner) return [npc, sim.instantiate({ npcId: partner.npcId })];
+  }
+  throw new Error('no couple in the fixture city');
+}
+
+/** The fixture city with a tower block added: enough couples to measure a rate. */
+function crowdedInput(params?: SimulationParams): SimulationInput {
+  const home = FIXTURE_BLUEPRINT.parcels.find((p) => p.type === 'residential')!;
+  const tower = { ...home, id: 'p_tower', envelope: { ...home.envelope, minFloors: 600, maxFloors: 600 } };
+  const blueprint = { ...FIXTURE_BLUEPRINT, parcels: [...FIXTURE_BLUEPRINT.parcels, tower] };
+  return { ...makeInput(params), blueprint };
+}
+
+/** Walks every adult: the share of couples sharing a gender, and the female share. */
+function coupleMix(input: SimulationInput): { couples: number; sameShare: number; femaleShare: number } {
+  const sim = createSimulation(input);
+  const partnered = new Set<string>();
+  let couples = 0;
+  let same = 0;
+  let female = 0;
+  let adults = 0;
+  for (let i = 0; i < sim.populationStats().population; i++) {
+    let npc: NPCInstance;
+    try {
+      npc = sim.instantiate({ npcId: `a${i}` });
+    } catch {
+      break; // past the last adult id
+    }
+    adults++;
+    if (npc.gender === 'female') female++;
+    const partner = npc.family.find((f) => f.relation === 'partner');
+    if (!partner || partnered.has(npc.npcId)) continue;
+    partnered.add(partner.npcId);
+    couples++;
+    if (sim.instantiate({ npcId: partner.npcId }).gender === npc.gender) same++;
+  }
+  return { couples, sameShare: same / couples, femaleShare: female / adults };
+}
 
 /** One workplace of every staffed kind, with hours inside and outside its rota. */
 const VENUES: { id: string; open: number[]; closed: number[] }[] = [
