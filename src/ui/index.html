@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>simulation testbed</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="stage">
+    <section class="map-column">
+      <div class="controls" id="controls"></div>
+      <canvas class="map" id="map" width="1000" height="500"></canvas>
+      <div class="legend" id="legend"></div>
+      <p class="hint">Click a walking dot to instantiate that NPC. Click a workplace to meet whoever is on duty.</p>
+    </section>
+    <aside class="inspector" id="inspector"></aside>
+  </main>
+  <script type="module" src="./dist/ui/main.js"></script>
+</body>
+</html>

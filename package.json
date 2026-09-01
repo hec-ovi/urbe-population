@@ -1,6 +1,6 @@
 {
   "name": "@urbe/simulation",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Statistical NPC city population with lazy deterministic instantiation",
   "type": "module",
   "main": "dist/index.js",
@@ -18,7 +18,7 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "testbed": "tsc -p tsconfig.testbed.json"
+    "testbed": "node scripts/build-testbed.mjs && node scripts/serve-static.mjs"
   },
   "license": "UNLICENSED",
   "devDependencies": {

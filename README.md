@@ -10,7 +10,7 @@ No LLM, no wall clock, no IO. Aggregate answers are pure functions of the inputs
 npm install
 npm test          # contract tests
 npm run build     # compile to dist/
-npm run testbed   # build the 2D preview, then serve the repo root and open /testbed/
+npm run testbed   # build the 2D preview and serve it on http://localhost:8080/testbed/
 ```
 
 ## In
@@ -48,6 +48,10 @@ Conservation holds throughout: an instanced NPC never contradicts the aggregate 
 - **Behavior**: a state snapshot per time. Inside a building the NPC runs the interior layer's routine anchors; the host owns the path geometry.
 
 `docs/RESEARCH.md` holds the statistics the defaults stand on, and `CONTRACT.md` is the full surface with its closed error set.
+
+## Testbed
+
+The 2D preview is a map of the fixture city with the crowd moving over a week; click a walking dot to instantiate that person, click a workplace to meet whoever is on duty. Its frontend lives in `src/ui` (views, widgets, components) and reaches the library through one adapter, `src/ui/adapter/city-feed.ts`, so styling and rendering stay clear of the simulation. `npm run testbed` compiles it into the generated `testbed/` folder and serves it on http://localhost:8080/testbed/, taking the next free port when 8080 is busy (`PORT` picks another). `src/ui/CONTRACT.md` describes the pieces.
 
 ## In the urbe family
 

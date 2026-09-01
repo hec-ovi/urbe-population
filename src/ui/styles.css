@@ -1,0 +1,109 @@
+/* Testbed skin. Canvas colors live in theme.ts; everything else is here. */
+
+:root {
+  --bg: #14161a;
+  --panel-bg: #1c1f24;
+  --canvas-bg: #0e1013;
+  --line: #333333;
+  --text: #e6e6e6;
+  --text-dim: #99aabb;
+  --text-body: #cdd6e0;
+  --text-error: #e08a8a;
+  --control-bg: #2a2e35;
+  --control-line: #444444;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+
+.stage {
+  display: flex;
+  min-height: 100vh;
+}
+
+.map-column {
+  flex: 1;
+  padding: 10px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+
+.control-button {
+  background: var(--control-bg);
+  color: var(--text);
+  border: 1px solid var(--control-line);
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.control-slider {
+  flex: 1;
+}
+
+.control-clock {
+  color: var(--text-dim);
+  min-width: 70px;
+}
+
+.map {
+  display: block;
+  width: 100%;
+  background: var(--canvas-bg);
+  border: 1px solid var(--line);
+}
+
+.legend {
+  margin: 8px 0;
+}
+
+.legend-item {
+  display: inline-block;
+  margin-right: 10px;
+  color: var(--text-dim);
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 3px;
+}
+
+.hint {
+  color: var(--text-dim);
+}
+
+.inspector {
+  width: 340px;
+  box-sizing: border-box;
+  padding: 10px;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--line);
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.panel-title {
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+
+.panel-body {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--text-body);
+}
+
+.panel-body.is-error {
+  color: var(--text-error);
+}
