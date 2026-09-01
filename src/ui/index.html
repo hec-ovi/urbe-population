@@ -3,19 +3,50 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>simulation testbed</title>
+  <title>URBE // Population Simulation Testbed</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <main class="stage">
-    <section class="map-column">
-      <div class="controls" id="controls"></div>
-      <canvas class="map" id="map" width="1000" height="500"></canvas>
-      <div class="legend" id="legend"></div>
-      <p class="hint">Click a walking dot to instantiate that NPC. Click a workplace to meet whoever is on duty.</p>
-    </section>
-    <aside class="inspector" id="inspector"></aside>
-  </main>
+  <div class="app-layout">
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="brand-badge">URBE</span>
+        <h1 class="brand-title">CROWD SIMULATION TESTBED</h1>
+        <span class="brand-sub">ATLAS 2D FEED</span>
+      </div>
+      <div class="header-telemetry">
+        <span class="telemetry-item"><i class="status-indicator"></i> SYSTEM: LIVE</span>
+        <span class="telemetry-item">SEED: <span class="telemetry-val">testbed</span></span>
+        <span class="telemetry-item">GRID: <span class="telemetry-val">PARCEL MATRIX</span></span>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section class="map-column">
+        <div class="controls-panel" id="controls"></div>
+
+        <div class="map-viewport">
+          <div class="map-hud-overlay map-hud-tl">CANVAS 2D // TOP-DOWN</div>
+          <div class="map-hud-overlay map-hud-tr">CLICK TO INSTANTIATE</div>
+          <canvas class="map" id="map" width="1000" height="500"></canvas>
+        </div>
+
+        <div class="legend-panel" id="legend"></div>
+
+        <footer class="map-footer">
+          <div class="shortcuts-row">
+            <span class="shortcut-tip"><kbd>SPACE</kbd> Play / Pause</span>
+            <span class="shortcut-tip"><kbd>CLICK DOT</kbd> Lazy Instantiate NPC</span>
+            <span class="shortcut-tip"><kbd>CLICK PARCEL</kbd> Query On-Duty Staff</span>
+          </div>
+        </footer>
+      </section>
+
+      <aside class="inspector-column" id="inspector"></aside>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
   <script type="module" src="./dist/ui/main.js"></script>
 </body>
 </html>

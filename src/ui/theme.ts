@@ -4,44 +4,55 @@
  */
 
 export const PARCEL_COLORS: Record<string, string> = {
-  residential: '#3a6ea5',
-  hotel: '#7a5c99',
-  offices: '#2e8b8b',
-  corpo: '#1f6f8b',
-  hospital: '#c94f4f',
-  clinic: '#c97f4f',
-  police: '#2f4a8a',
-  military: '#4a5d23',
-  factory: '#8a6d3b',
-  commerce: '#d98e32',
-  mall: '#d9b432',
-  restaurant: '#c9473f',
-  coffee_shop: '#8a5a3b',
+  residential: '#3b6ea5',
+  hotel: '#7e57c2',
+  offices: '#26a69a',
+  corpo: '#1e88e5',
+  hospital: '#e53935',
+  clinic: '#fb8c00',
+  police: '#3949ab',
+  military: '#558b2f',
+  factory: '#8d6e63',
+  commerce: '#ffa726',
+  mall: '#ffca28',
+  restaurant: '#f4511e',
+  coffee_shop: '#a1887f',
 };
 
 export const DISTRICT_COLORS: Record<string, string> = {
-  downtown: '#181d24',
-  commercial: '#1a1c1f',
-  residential: '#171a17',
-  industrial: '#1c1a17',
-  mixed: '#181a1d',
+  downtown: '#141820',
+  commercial: '#161922',
+  residential: '#121614',
+  industrial: '#191613',
+  mixed: '#15171e',
 };
 
 export const DOT_COLORS: Record<string, string> = {
-  commuting: '#7fd1b9',
+  commuting: '#00e5ff',
+  transit_wait: '#facc15',
+  working: '#38bdf8',
+  shopping: '#c084fc',
+  dining: '#fb923c',
+  leisure: '#34d399',
+  sleeping: '#64748b',
+  wandering: '#f43f5e',
 };
 
 export const CANVAS_THEME = {
-  parcelFallback: '#666666',
-  districtFallback: '#171a17',
-  street: '#3a3f46',
+  parcelFallback: '#475569',
+  districtFallback: '#101318',
+  districtBorder: '#1e2633',
+  street: '#252e3d',
   streetWidthPx: 4,
-  stop: '#e0c341',
+  streetOutline: '#151a23',
+  stop: '#facc15',
   stopSizePx: 6,
-  dotFallback: '#d1a97f',
-  dotSizePx: 4,
+  dotFallback: '#00e5ff',
+  dotSizePx: 5,
   /** Click tolerance around a dot, in pixels. */
-  dotHitPx: 6,
+  dotHitPx: 8,
+  selectionHighlight: '#00e5ff',
+  hoverHighlight: '#ffffff',
 };
 
 export function colorOf(palette: Record<string, string>, key: string, fallback: string): string {
