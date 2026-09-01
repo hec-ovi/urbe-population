@@ -7,7 +7,7 @@
 
 import { Permutation } from '../core/feistel.js';
 import { rand } from '../core/rng.js';
-import { isSecuritySlot, shiftForSlot } from './jobs.js';
+import { chosenRoleCounts, isSecuritySlot, shiftForSlot } from './jobs.js';
 import type { ResolvedParams } from './defaults.js';
 import type { Demographics } from './demographics.js';
 import type { WorldModel, Workplace } from '../world/model.js';
@@ -97,17 +97,10 @@ export class AssignmentModel {
   }
 
   roleOfSlot(workplace: Workplace, localSlot: number): string {
-    if (isSecuritySlot(workplace.staffing, localSlot)) return 'security';
     const support = this.world.interiors.get(workplace.parcelId);
     if (support) {
-      const counts: number[] = [];
-      let total = 0;
-      for (const slot of support.roles) {
-        const [min, max] = slot.count;
-        const n = min + rand(this.seed, 'rolecount', workplace.parcelId, slot.id).int(max - min + 1);
-        counts.push(n);
-        total += n;
-      }
+      const counts = chosenRoleCounts(this.seed, workplace.parcelId, support);
+      const total = counts.reduce((s, n) => s + n, 0);
       if (total > 0) {
         let cursor = localSlot % total;
         for (let i = 0; i < support.roles.length; i++) {
@@ -116,7 +109,12 @@ export class AssignmentModel {
         }
       }
     }
+    if (isSecuritySlot(workplace.staffing, localSlot)) return 'security';
     return DERIVED_ROLE[workplace.type] ?? 'worker';
+  }
+
+  typeDef(type: string): NPCTypeDef | undefined {
+    return this.typeSet.types.find((t) => t.type === type);
   }
 
   /** Themed NPC type: job-grounded for employed adults, resident type otherwise. */
@@ -157,7 +155,7 @@ export class AssignmentModel {
 
   residentTypeCandidates(tier: WealthTier): NPCTypeDef[] {
     let candidates = this.typeSet.types.filter(
-      (t) => t.category === 'resident' && (!t.grounding.tiers || t.grounding.tiers.includes(tier)),
+      (t) => (t.category === 'resident' || t.category === 'street') && (!t.grounding.tiers || t.grounding.tiers.includes(tier)),
     );
     if (candidates.length === 0) candidates = this.typeSet.types.filter((t) => t.category === 'resident');
     if (candidates.length === 0) candidates = this.typeSet.types;

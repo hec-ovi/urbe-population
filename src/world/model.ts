@@ -121,7 +121,7 @@ export class WorldModel {
   private buildWorkplaces(parcels: Parcel[]): number {
     let offset = 0;
     for (const p of parcels) {
-      const staffing = staffWorkplace(this.seed, p, polygonArea(p.footprint));
+      const staffing = staffWorkplace(this.seed, p, polygonArea(p.footprint), this.interiors.get(p.id));
       if (staffing.slotCount === 0) continue;
       const wp: Workplace = { parcelId: p.id, districtId: p.districtId, type: p.type, tier: p.tier, staffing, slotOffset: offset };
       this.workplaces.push(wp);

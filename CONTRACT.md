@@ -23,7 +23,7 @@ Status: draft v0.1. Query surface stable enough to build against; statistical de
 ## Out (CitySimulation)
 - `populationStats(): PopulationStats` ([src/schemas/population.ts](src/schemas/population.ts)): residents, households, employment and NPC type counts per district and tier. Consumed by naming.
 - `crowd(timeMin, scope): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): typed counts plus cheap pseudo-agents for a scope (city, district, edge, stop, parcel). A CrowdAgent's crowdId is stable for its whole trip and is the instantiation handle.
-- `instantiate(handle): NPCInstance` ([src/schemas/npc.ts](src/schemas/npc.ts)): handle is `{ crowdId, timeMin }` or a VendorQuery. Assigns the full life, conditioned on everything already instantiated; persistent from then on.
+- `instantiate(handle): NPCInstance` ([src/schemas/npc.ts](src/schemas/npc.ts)): handle is `{ crowdId, timeMin }`, `{ npcId }` (family stubs carry npcIds) or a VendorQuery. Assigns the full life, conditioned on everything already instantiated; persistent from then on.
 - `getNPC(npcId): NPCInstance`: instanced NPCs only.
 - `getNPCVendor(query: VendorQuery): NPCInstance`: the on-duty worker for a place, type or role at a time; instantiates if needed. Quest layer entry point.
 - `findNPCs(query: NPCQuery): NPCInstance[]`: query over instanced NPCs; dead ones excluded unless asked.
