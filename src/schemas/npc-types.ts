@@ -1,8 +1,9 @@
 /**
  * TypeScript mirror of ../naming/schema/npc-types.schema.json: the themed NPC
- * type set the naming pass produces. A built-in default set ships for
- * standalone runs. Personal name pools are separate (naming names places, not
- * people); a built-in default pool ships and names repeat by design.
+ * type set the naming pass produces, including its themed personal name pool.
+ * A built-in default set ships for standalone runs. Name pool precedence:
+ * the explicit namePool input override, else the set's embedded pool, else
+ * the built-in default.
  */
 
 import type { ParcelType, WealthTier } from './blueprint.js';
@@ -15,6 +16,8 @@ export interface NPCTypeSet {
     model?: string;
   };
   types: NPCTypeDef[];
+  /** Themed pool; family entries may be epithets or patronymics. Min 20 each. */
+  namePool: NamePool;
 }
 
 export interface NPCTypeDef {

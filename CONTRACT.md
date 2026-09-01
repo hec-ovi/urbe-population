@@ -16,8 +16,8 @@ Status: draft v0.1. Query surface stable enough to build against; statistical de
 - `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint (v0.2 mirror); a full atlas blueprint satisfies it.
 - `networks?`: [src/schemas/networks.ts](src/schemas/networks.ts): consumed slice of connections Networks (walk graph, timetabled transit routes). Absent: fallback derived from blueprint transit with default headways.
 - `interiors?`: [src/schemas/interiors.ts](src/schemas/interiors.ts): parcelId -> NpcSupport (mirror of ../interior/schemas/npc.schema.json). Absent: per-type synthetic role sets.
-- `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): mirror of naming's npc-types schema (typed set with categories, grounding, weights). Absent: built-in default set.
-- `namePool?`: given and family name arrays ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)); built-in default pool; names repeat across NPCs by design. Naming names places, not people, so this stays a simulation input.
+- `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): mirror of naming's npc-types schema (typed set with categories, grounding, weights, embedded themed name pool). Absent: built-in default set.
+- `namePool?`: explicit override pool ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)). Precedence: this override, else the set's embedded pool, else the built-in default. Names repeat across NPCs by design.
 - `params?`: [src/schemas/params.ts](src/schemas/params.ts): statistical overrides, all defaulted from research.
 
 ## Out (CitySimulation)
