@@ -1,7 +1,9 @@
 /**
- * Cheap crowd layer: typed counts plus stable pseudo-agents. A CrowdAgent is
- * not a full NPC; its crowdId is stable for the whole trip or presence and is
- * the handle the engine passes to instantiate() when the player interacts.
+ * Cheap crowd layer: typed counts plus a deterministic capped sample of
+ * pseudo-agents for every scope kind. A CrowdAgent is not a full NPC; its
+ * crowdId is stable for the whole trip or presence and is the handle the
+ * engine passes to instantiate() when the player interacts. Groups carry the
+ * exact counts; agents are a sample capped by CrowdOpts.maxAgents.
  */
 
 export type Activity =
@@ -17,6 +19,11 @@ export type Activity =
 export interface CrowdScope {
   kind: 'city' | 'district' | 'edge' | 'stop' | 'parcel';
   id?: string;
+}
+
+export interface CrowdOpts {
+  /** Cap on the sampled agents returned. Default 64. */
+  maxAgents?: number;
 }
 
 export interface CrowdSlice {

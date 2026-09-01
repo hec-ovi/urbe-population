@@ -56,6 +56,5 @@ export function validateInput(input: SimulationInput): void {
       if (v !== undefined && !(v > 0 && v <= 1)) fail(`params.${key}`, 'must be in (0, 1]');
     }
     if (p.crowdScale !== undefined && !(p.crowdScale >= 0)) fail('params.crowdScale', 'must be >= 0');
-    if (p.agentCap !== undefined && !(p.agentCap >= 0)) fail('params.agentCap', 'must be >= 0');
   }
 }

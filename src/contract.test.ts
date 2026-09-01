@@ -90,11 +90,45 @@ describe('crowd layer', () => {
     expect(total(noon)).toBeGreaterThan(total(night));
     const edge = sim.crowd(MON_NOON, { kind: 'edge', id: 'e1' });
     expect(edge.agents.length).toBeGreaterThan(0);
-    expect(edge.agents.length).toBeLessThanOrEqual(200);
+    expect(edge.agents.length).toBeLessThanOrEqual(64);
     for (const agent of edge.agents) {
       expect(agent.crowdId).toContain('e1');
       expect(agent.type.length).toBeGreaterThan(0);
     }
+  });
+
+  it('every blueprint district is on the surface, including industrial ones without residents', () => {
+    const sim = make();
+    const stats = sim.populationStats();
+    expect(stats.perDistrict.map((d) => d.districtId).sort()).toEqual(['d0', 'd1', 'd2']);
+    const industrial = stats.perDistrict.find((d) => d.districtId === 'd2')!;
+    expect(industrial.population).toBe(0);
+    const commute = sim.crowd(7 * 60 + 30, { kind: 'district', id: 'd2' });
+    expect(commute.groups.reduce((s, g) => s + g.count, 0)).toBeGreaterThan(0);
+  });
+
+  it('every scope kind returns sampled instantiable agents capped by maxAgents', () => {
+    const sim = make();
+    const city = sim.crowd(MON_NOON, { kind: 'city' });
+    expect(city.agents.length).toBeGreaterThan(0);
+    expect(city.agents.length).toBeLessThanOrEqual(64);
+    const district = sim.crowd(MON_NOON, { kind: 'district', id: 'd1' }, { maxAgents: 5 });
+    expect(district.agents.length).toBeGreaterThan(0);
+    expect(district.agents.length).toBeLessThanOrEqual(5);
+    const walker = sim.instantiate({ crowdId: district.agents[0]!.crowdId, timeMin: MON_NOON });
+    expect(walker.type).toBe(district.agents[0]!.type);
+
+    const busy = createSimulation({ ...makeInput(), params: { crowdScale: 20 } });
+    const stop = busy.crowd(8 * 60, { kind: 'stop', id: 'b1' });
+    expect(stop.agents.length).toBeGreaterThan(0);
+    expect(stop.agents[0]!.activity).toBe('transit_wait');
+
+    const parcel = sim.crowd(MON_9, { kind: 'parcel', id: 'p_cafe' });
+    expect(parcel.agents.length).toBeGreaterThan(0);
+    const worker = sim.instantiate({ crowdId: parcel.agents[0]!.crowdId, timeMin: MON_9 });
+    expect(worker.job!.parcelId).toBe('p_cafe');
+    const again = sim.instantiate({ crowdId: parcel.agents[0]!.crowdId, timeMin: MON_9 });
+    expect(again.npcId).toBe(worker.npcId);
   });
 
   it('a parcel scope reports on-duty workers', () => {

@@ -15,10 +15,8 @@ export interface SimulationParams {
   shiftMix?: ShiftMix;
   /** Multiplier on ambient crowd density. Default 1. */
   crowdScale?: number;
-  /** Fallback transit headway in minutes when the paths input is absent. */
+  /** Fallback transit headway in minutes when the networks input is absent. */
   defaultHeadwayMin?: number;
-  /** Max CrowdAgent descriptors returned per crowd() call. */
-  agentCap?: number;
 }
 
 export interface HouseholdMix {

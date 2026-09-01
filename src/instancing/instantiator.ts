@@ -7,6 +7,7 @@
 import { rand } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftCoversTime } from '../population/jobs.js';
+import { parseHandle } from '../crowd/handles.js';
 import { pickName } from './names.js';
 import { RoutineBuilder } from './routine.js';
 import { SimulationError } from '../schemas/errors.js';
@@ -54,6 +55,16 @@ export class Instantiator {
   fromCrowd(crowdId: string, timeMin: number, agent: CrowdAgent): NPCInstance {
     const bound = this.registry.crowdBindings.get(crowdId);
     if (bound) return this.registry.instances.get(bound)!;
+    const h = parseHandle(crowdId);
+    if (h?.kind === 'parcel') {
+      // A parcel handle names a filled job slot: the person is determinate.
+      const wp = this.world.workplacesByParcel.get(h.id)!;
+      const adultIdx = this.assignment.adultOfSlot(wp.slotOffset + h.slot)!;
+      const npcId = `a${adultIdx}`;
+      const instance = this.registry.instances.get(npcId) ?? this.buildAdult(adultIdx);
+      this.registry.crowdBindings.set(crowdId, npcId);
+      return instance;
+    }
     for (let k = 0; k < ALIBI_ATTEMPTS; k++) {
       const adultIdx = rand(this.seed, 'alibi', crowdId, k).int(this.demo.totalAdults);
       if (this.registry.claimedAdults.has(adultIdx)) continue;

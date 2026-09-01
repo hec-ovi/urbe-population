@@ -13,12 +13,14 @@ export function buildStats(world: WorldModel, demo: Demographics, assignment: As
   const cityTypes: Record<string, number> = {};
   let employed = 0;
 
+  // Every blueprint district is present, including ones with zero residents
+  // (industrial districts still carry a working population).
+  for (const district of world.districts) {
+    perDistrict.set(district.id, { districtId: district.id, population: 0, households: 0, byTier: {} });
+  }
+
   for (const group of world.groups) {
-    let d = perDistrict.get(group.districtId);
-    if (!d) {
-      d = { districtId: group.districtId, population: 0, households: 0, byTier: {} };
-      perDistrict.set(group.districtId, d);
-    }
+    const d = perDistrict.get(group.districtId)!;
     const adults = demo.groupAdults(group.index);
     const kids = demo.groupKids(group.index);
     const tier: TierPopulation = {

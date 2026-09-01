@@ -22,7 +22,7 @@ import type { NpcSupport } from '../schemas/interiors.js';
 import type { NamePool, NPCTypeSet } from '../schemas/npc-types.js';
 import type { SimulationParams } from '../schemas/params.js';
 import type { PopulationStats } from '../schemas/population.js';
-import type { CrowdScope, CrowdSlice } from '../schemas/crowd.js';
+import type { CrowdOpts, CrowdScope, CrowdSlice } from '../schemas/crowd.js';
 import type { BehaviorState, FlagOp, NPCInstance, NPCQuery, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 
 export interface SimulationInput {
@@ -72,9 +72,9 @@ export class CitySimulation {
     return this.stats;
   }
 
-  crowd(timeMin: number, scope: CrowdScope): CrowdSlice {
+  crowd(timeMin: number, scope: CrowdScope, opts?: CrowdOpts): CrowdSlice {
     this.crowdModel ??= new CrowdModel(this.input.seed, this.world, this.populationStats(), this.typeSet, this.params, this.assignment);
-    return this.crowdModel.crowd(timeMin, scope);
+    return this.crowdModel.crowd(timeMin, scope, opts);
   }
 
   instantiate(handle: InstantiateHandle): NPCInstance {

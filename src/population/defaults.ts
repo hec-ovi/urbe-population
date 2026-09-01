@@ -15,7 +15,6 @@ export interface ResolvedParams {
   shiftMix: { day: number; evening: number; night: number; rotating: number };
   crowdScale: number;
   defaultHeadwayMin: number;
-  agentCap: number;
 }
 
 export function resolveParams(params?: SimulationParams): ResolvedParams {
@@ -38,7 +37,6 @@ export function resolveParams(params?: SimulationParams): ResolvedParams {
     },
     crowdScale: params?.crowdScale ?? 1,
     defaultHeadwayMin: params?.defaultHeadwayMin ?? 12,
-    agentCap: params?.agentCap ?? 200,
   };
 }
 

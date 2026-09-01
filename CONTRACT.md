@@ -22,7 +22,7 @@ Status: v0.1 implemented and tested. Statistical defaults documented in docs/RES
 
 ## Out (CitySimulation)
 - `populationStats(): PopulationStats` ([src/schemas/population.ts](src/schemas/population.ts)): residents, households, employment and NPC type counts per district and tier. Consumed by naming.
-- `crowd(timeMin, scope): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): typed counts plus cheap pseudo-agents for a scope (city, district, edge, stop, parcel). A CrowdAgent's crowdId is stable for its whole trip and is the instantiation handle.
+- `crowd(timeMin, scope, opts?): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): groups carry exact typed counts; agents are a deterministic sample for every scope kind (city, district, edge, stop, parcel), capped by `opts.maxAgents` (default 64). Every agent's crowdId is stable for its trip and is an instantiation handle; parcel agents are the on-duty workers, so their handles resolve to those exact NPCs.
 - `instantiate(handle): NPCInstance` ([src/schemas/npc.ts](src/schemas/npc.ts)): handle is `{ crowdId, timeMin }`, `{ npcId }` (family stubs carry npcIds) or a VendorQuery. Assigns the full life, conditioned on everything already instantiated; persistent from then on.
 - `getNPC(npcId): NPCInstance`: instanced NPCs only.
 - `getNPCVendor(query: VendorQuery): NPCInstance`: the on-duty worker for a place, type or role at a time; instantiates if needed. Quest layer entry point.
@@ -45,6 +45,7 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 
 ## Invariants
 - Same seed and inputs: identical populationStats and crowd for any query order.
+- Every blueprint district appears in populationStats.perDistrict and is a valid crowd scope, residents or not; districts without residents still carry their working population in crowds.
 - Same seed and same interaction order: identical instanced population.
 - Conservation: instanced NPCs never contradict aggregate stats; an assigned home unit, job slot or crowd identity is never reassigned; an instance never changes identity, home or family except through applyFlag.
 - Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs.
