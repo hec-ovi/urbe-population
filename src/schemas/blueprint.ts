@@ -1,7 +1,10 @@
 /**
  * Consumed slice of the atlas city blueprint.
- * Mirrors ../atlas/schema/blueprint.ts (draft v0.2): identical names and field
- * shapes, narrowed to what simulation reads; a full atlas blueprint satisfies it.
+ * Mirrors ../atlas/schema/blueprint.ts (verified against blueprint 0.7.0):
+ * identical names and field shapes, narrowed to what simulation reads, so a
+ * full atlas blueprint satisfies it. Street class and level, street nodes and
+ * crossings, and station geometry are the host's business, not the
+ * population's, and stay out.
  * Units meters, ground plane XZ, 2D points [x, z], polygons CCW.
  */
 
@@ -11,7 +14,6 @@ export type Polyline = Vec2[];
 
 export type DistrictKind = 'downtown' | 'commercial' | 'residential' | 'industrial' | 'mixed';
 export type WealthTier = 'poor' | 'mid' | 'rich' | 'high_rich';
-export type StreetClass = 'street' | 'road' | 'highway';
 
 export type ParcelType =
   | 'residential'
@@ -48,7 +50,6 @@ export interface District {
 
 export interface StreetEdge {
   id: string;
-  class: StreetClass;
   /** Centerline polyline; crowd positions interpolate along it. */
   path: Polyline;
   /** Sidewalk width per side in meters, 0 = none (no pedestrians on that side). */

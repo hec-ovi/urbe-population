@@ -108,6 +108,13 @@ describe('crowd layer', () => {
     }
   });
 
+  it('a street with no sidewalk carries nobody and is no crowd scope', () => {
+    const sim = make();
+    expect(code(() => sim.crowd(MON_NOON, { kind: 'edge', id: 'e_deck' }))).toBe('E_UNKNOWN_ID');
+    const near = sim.crowd(MON_NOON, { kind: 'radius', x: 1200, z: 50, metres: 40 });
+    expect(near.agents).toHaveLength(0);
+  });
+
   it('every blueprint district is on the surface, including industrial ones without residents', () => {
     const sim = make();
     const stats = sim.populationStats();

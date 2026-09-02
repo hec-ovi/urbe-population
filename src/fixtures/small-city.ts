@@ -53,12 +53,13 @@ export const FIXTURE_BLUEPRINT: CityBlueprint = {
   ],
   streets: {
     edges: [
-      { id: 'e0', class: 'street', path: [[0, 250], [500, 250]], sidewalk: { left: 2, right: 2 }, districtIds: ['d0'] },
-      { id: 'e1', class: 'street', path: [[500, 250], [1000, 250]], sidewalk: { left: 2, right: 2 }, districtIds: ['d1'] },
-      { id: 'e2', class: 'street', path: [[250, 0], [250, 500]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d0'] },
-      { id: 'e3', class: 'street', path: [[750, 0], [750, 500]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d1'] },
-      { id: 'e4', class: 'street', path: [[1000, 250], [1500, 250]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d2'] },
-      { id: 'e5', class: 'street', path: [[500, 450], [1000, 450]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d1'] },
+      { id: 'e0', path: [[0, 250], [500, 250]], sidewalk: { left: 2, right: 2 }, districtIds: ['d0'] },
+      { id: 'e1', path: [[500, 250], [1000, 250]], sidewalk: { left: 2, right: 2 }, districtIds: ['d1'] },
+      { id: 'e2', path: [[250, 0], [250, 500]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d0'] },
+      { id: 'e3', path: [[750, 0], [750, 500]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d1'] },
+      { id: 'e4', path: [[1000, 250], [1500, 250]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d2'] },
+      { id: 'e5', path: [[500, 450], [1000, 450]], sidewalk: { left: 1.5, right: 1.5 }, districtIds: ['d1'] },
+      { id: 'e_deck', path: [[0, 50], [1500, 50]], sidewalk: { left: 0, right: 0 }, districtIds: ['d0', 'd1', 'd2'] },
     ],
   },
   parcels: [

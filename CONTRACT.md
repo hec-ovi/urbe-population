@@ -2,7 +2,7 @@
 
 Purpose: statistical NPC population with lazy instantiation: crowds run cheap by type, a specific NPC gets a full deterministic life (home, job, family, routine, name) only on interaction, and stays persistent from then on.
 
-Status: v0.6.3 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
+Status: v0.6.4 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Time: integer minutes since world epoch (Monday 00:00). Day = floor(t / 1440) % 7, 0 = Monday; minute of day = t % 1440. Routines repeat weekly.
@@ -13,7 +13,7 @@ Status: v0.6.3 implemented and tested. Statistical defaults documented in docs/R
 `createSimulation(input): CitySimulation`
 
 - `seed: string | number`
-- `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint (v0.2 mirror); a full atlas blueprint satisfies it.
+- `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint, verified against blueprint 0.7.0; a full atlas blueprint satisfies it. The slice reads districts, street edges with their sidewalk widths, parcels, transit and stats: street class and level, street nodes and crossings and station geometry belong to the host that draws the city.
 - `networks?`: [src/schemas/networks.ts](src/schemas/networks.ts): consumed slice of connections Networks (walk graph, timetabled transit routes). Absent: fallback derived from blueprint transit with default headways.
 - `interiors?`: [src/schemas/interiors.ts](src/schemas/interiors.ts): parcelId -> NpcSupport (mirror of ../interior/schemas/npc.schema.json). Absent: per-type synthetic role sets.
 - `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): mirror of naming's npc-types schema (typed set with categories, grounding, weights, embedded themed name pool). Absent: built-in default set.
@@ -36,7 +36,7 @@ Status: v0.6.3 implemented and tested. Statistical defaults documented in docs/R
 ## Errors
 Closed set, thrown as `SimulationError { code, message, details? }` ([src/schemas/errors.ts](src/schemas/errors.ts)):
 - `E_INVALID_INPUT`: input or a radius scope fails validation; message names the field.
-- `E_UNKNOWN_ID`: npc, parcel, district, edge, stop or line id not found.
+- `E_UNKNOWN_ID`: npc, parcel, district, edge, stop or line id not found. A street edge whose sidewalk is 0 on both sides is not a walk edge and so not a crowd scope: a highway deck raises this.
 - `E_STALE_HANDLE`: crowdId names a trip that does not cover the given time and was never instantiated.
 - `E_NO_MATCH`: no NPC can satisfy the query or reservation.
 - `E_DEAD`: behavior or flag operation on a dead NPC.
@@ -54,7 +54,7 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - Trip identity: a street slot runs back-to-back traversals of its edge (`max(2, round(length / 80))` minutes), a stop slot back-to-back 8 minute waits, staggered so trips start at every minute; whether a trip exists is fixed by the place's count at the trip's own start minute, so a handle never dies before its `trip.endMin` however the street thins. `startMin` and `endMin` are both minutes the body is there: a 2 minute traversal read at 780 states `{ 780, 781 }` and instantiates at 780 and 781. A parcel handle states the on-duty span the same way, ending on the worker's last minute on shift. Trips do not continue across edges: the crowd is a flow per street, and the body that leaves an edge is not the one that appears on the next.
 - Staffing is a rota: posts (people on duty at once) x waves (shifts tiling the open span) x day crews (five days each, no overlap). An open place is staffed and vendor-queryable at every minute of its opening hours on every day it opens, with the same headcount on a Sunday as on a Tuesday, and empty when closed. Interior role [min, max] counts set the posts; 24/7 places get three waves plus security; night-only places staff night shifts; every staffed job maps to an employed resident with a commute.
 - When a city has more job slots than employed residents, slots fill breadth-first: every workplace's opening rota before any workplace's deeper slots, so small venues stay open and large employers carry the shortfall.
-- Street presence: the share of the population out in public space by hour is calibrated to time-use and travel statistics (docs/RESEARCH.md) and multiplied by `params.streetDensity` (default 1, the researched share). Presence is spread across districts and street edges by land-use pull, so commercial frontage carries more people than a bypass of the same length.
+- Street presence: the share of the population out in public space by hour is calibrated to time-use and travel statistics (docs/RESEARCH.md) and multiplied by `params.streetDensity` (default 1, the researched share). Presence is spread across the street edges that have a sidewalk, by land-use pull, so commercial frontage carries more people than a bypass of the same length and a sidewalk-free deck carries none.
 - Standalone: runs against fixture blueprints with no other layer present.
 
 ## Depends on

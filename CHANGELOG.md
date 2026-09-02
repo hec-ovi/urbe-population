@@ -1,5 +1,7 @@
 # Changelog
 
+0.6.4: the blueprint slice is verified against atlas 0.7.0 and declares only what the population reads: districts, street edges with their sidewalk widths, parcels, transit and stats. Street class, level, nodes and crossings belong to the host that draws the city, so a new atlas street class such as `alley` needs no change here; pedestrians follow sidewalk width, and a highway deck carries none.
+
 0.6.3: the contract states where a worker's type and role each come from. The type is naming's, grounded on the parcel type, so a coffee shop staffs baristas; `job.role` is the interior's own role name for the post when the parcel ships an NpcSupport, so a `role` filter on getNPCVendor matches the interior's vocabulary and nothing else.
 
 0.6.2: a trip's stated span is inclusive on both ends. `trip.endMin` is the last whole minute the body is on its edge, at its stop or on shift, so a handle read at 780 instantiates at 780 and 781 and the next body of that slot starts at 782. Consumers that hold a person until `endMin` keep them for the whole trip instead of losing the final minute.
