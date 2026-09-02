@@ -266,6 +266,21 @@ describe('lazy instantiation', () => {
     expect(busy.instantiate({ crowdId: wait.crowdId, timeMin: wait.trip.endMin - 1 }).type).toBe(wait.type);
   });
 
+  it('every body in a slice instantiates into a person of its type and gender, rare types included', () => {
+    const sim = make();
+    const bodies = [
+      ...sim.crowd(780, { kind: 'edge', id: 'e1' }).agents,
+      ...sim.crowd(MON_NOON, { kind: 'city' }, { maxAgents: 24 }).agents,
+    ];
+    const types = new Set<string>();
+    for (const body of bodies) {
+      const person = sim.instantiate({ crowdId: body.crowdId, timeMin: body.trip.startMin });
+      expect([person.type, person.gender]).toEqual([body.type, body.gender]);
+      types.add(body.type);
+    }
+    expect(types.size).toBeGreaterThan(3);
+  });
+
   it('after its trip a handle is stale unless it was instantiated, which binds it for good', () => {
     const sim = make();
     const agents = sim.crowd(MON_NOON, { kind: 'edge', id: 'e1' }).agents;

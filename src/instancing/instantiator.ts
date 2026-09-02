@@ -21,8 +21,8 @@ import type { WorldModel, Workplace } from '../world/model.js';
 import type { FamilyMember, Gender, NPCInstance, NPCName, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 import type { CrowdAgent } from '../schemas/crowd.js';
 
-const ALIBI_ATTEMPTS = 256;
-const ALIBI_STRICT_ATTEMPTS = 128;
+/** Seeded probes for a free person of the agent's type and gender whose routine has them outdoors now. */
+const ALIBI_PROBES = 128;
 const RESERVE_ATTEMPTS = 512;
 const OUTDOOR_ACTIVITIES = new Set(['commuting', 'leisure', 'shopping', 'transit_wait']);
 
@@ -72,17 +72,31 @@ export class Instantiator {
       this.registry.crowdBindings.set(crowdId, npcId);
       return instance;
     }
-    for (let k = 0; k < ALIBI_ATTEMPTS; k++) {
+    for (let k = 0; k < ALIBI_PROBES; k++) {
       const adultIdx = rand(this.seed, 'alibi', crowdId, k).int(this.demo.totalAdults);
-      if (this.registry.claimedAdults.has(adultIdx)) continue;
-      if (this.assignment.typeOfAdult(adultIdx).type !== agent.type) continue;
-      if (this.genders.of(adultId(adultIdx)) !== agent.gender) continue;
-      if (k < ALIBI_STRICT_ATTEMPTS && !this.plausiblyOutdoors(adultIdx, timeMin)) continue;
-      const instance = this.buildAdult(adultIdx);
-      this.registry.crowdBindings.set(crowdId, instance.npcId);
-      return instance;
+      if (this.freeMatch(adultIdx, agent) && this.plausiblyOutdoors(adultIdx, timeMin)) return this.bind(crowdId, adultIdx);
+    }
+    // A seeded walk reaches every free person of the type and gender, so a rare type is found, not gambled on.
+    const start = rand(this.seed, 'alibi-walk', crowdId).int(this.demo.totalAdults);
+    for (let k = 0; k < this.demo.totalAdults; k++) {
+      const adultIdx = (start + k) % this.demo.totalAdults;
+      if (this.freeMatch(adultIdx, agent)) return this.bind(crowdId, adultIdx);
     }
     throw new SimulationError('E_NO_MATCH', `no free NPC matches crowd agent ${crowdId}`);
+  }
+
+  private freeMatch(adultIdx: number, agent: CrowdAgent): boolean {
+    return (
+      !this.registry.claimedAdults.has(adultIdx) &&
+      this.assignment.typeOfAdult(adultIdx).type === agent.type &&
+      this.genders.of(adultId(adultIdx)) === agent.gender
+    );
+  }
+
+  private bind(crowdId: string, adultIdx: number): NPCInstance {
+    const instance = this.buildAdult(adultIdx);
+    this.registry.crowdBindings.set(crowdId, instance.npcId);
+    return instance;
   }
 
   vendor(query: VendorQuery): NPCInstance {
