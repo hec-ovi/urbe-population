@@ -1,5 +1,7 @@
 # Changelog
 
+0.6: a crowd handle names one trip. A street slot runs back-to-back traversals of its edge at walking pace and a stop slot 8 minute waits, staggered so trips start at every minute, each typed and counted at its own start minute; the same crowdId comes back on every poll with progress advancing in its direction, `agent.trip` states the span, instantiate resolves the handle at any minute of the trip and, once instantiated, at any time. Parcel agents state their on-duty span the same way.
+
 0.5: crowd() takes a radius scope `{ kind: 'radius', x, z, metres }` returning every street and stop agent inside the circle with no cap (city and district scopes keep maxAgents); residents are calibrated to the blueprint's stats.population within 3 percent by scaling the estimated housing stock, with the factor published as populationStats().calibrationFactor; every crowd agent carries the gender its handle resolves to on instantiation.
 
 0.4.1: a couple's gender composition is one household-level draw, keyed by household id and so identical whichever partner is instantiated first. `params.sameGenderCoupleShare` (default 0.03, the city rate in docs/RESEARCH.md) sets how many couples share a gender; singles, lone parents, roommates and kids keep the individual `params.femaleShare` draw.

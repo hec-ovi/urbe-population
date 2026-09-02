@@ -54,10 +54,15 @@ export class Instantiator {
     throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
   }
 
-  /** The person behind a crowd agent: determinate for a parcel handle, an alibi of the same type and gender otherwise. */
-  fromCrowd(crowdId: string, timeMin: number, agent: CrowdAgent): NPCInstance {
+  /**
+   * The person behind a crowd handle: the one already bound to it at any time,
+   * else the agent alive now (determinate for a parcel handle, an alibi of the
+   * same type and gender otherwise); no agent means the trip is over.
+   */
+  fromCrowd(crowdId: string, timeMin: number, agent: CrowdAgent | undefined): NPCInstance {
     const bound = this.registry.crowdBindings.get(crowdId);
     if (bound) return this.registry.instances.get(bound)!;
+    if (!agent) throw new SimulationError('E_STALE_HANDLE', `crowd handle ${crowdId} names no trip at ${timeMin}`);
     const h = parseHandle(crowdId);
     if (h?.kind === 'parcel') {
       const wp = this.world.workplacesByParcel.get(h.id)!;

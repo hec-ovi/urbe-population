@@ -90,7 +90,6 @@ export class CitySimulation {
     }
     if ('crowdId' in handle) {
       const agent = this.crowdLayer().agentAt(handle.crowdId, handle.timeMin);
-      if (!agent) throw new SimulationError('E_STALE_HANDLE', `crowd agent ${handle.crowdId} is not alive at ${handle.timeMin}`);
       const inst = this.instantiator.fromCrowd(handle.crowdId, handle.timeMin, agent);
       this.registry.log({ k: 'crowd', crowdId: handle.crowdId, timeMin: handle.timeMin });
       return inst;

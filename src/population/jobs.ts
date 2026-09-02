@@ -56,15 +56,30 @@ const EMPTY: WorkplaceStaffing = {
 /** Share of a 24/7 venue's posts that watch doors and cameras. */
 const SECURITY_SHARE = 0.2;
 
-/** Whether a shift covers an absolute time, midnight spans included. */
-export function shiftCoversTime(shift: Shift, timeMin: number): boolean {
+export interface ShiftSpan {
+  startMin: number;
+  endMin: number;
+}
+
+/** The on-duty span [startMin, endMin) in absolute minutes that contains a time, midnight spans included. */
+export function shiftSpanAt(shift: Shift, timeMin: number): ShiftSpan | undefined {
   const day = Math.floor(timeMin / MIN_PER_DAY) % 7;
   const m = ((timeMin % MIN_PER_DAY) + MIN_PER_DAY) % MIN_PER_DAY;
+  const dayStart = timeMin - m;
   const { startMin, endMin, days } = shift;
-  if (startMin === endMin) return days.includes(day);
-  if (startMin < endMin) return m >= startMin && m < endMin && days.includes(day);
-  if (m >= startMin) return days.includes(day);
-  return m < endMin && days.includes((day + 6) % 7);
+  if (startMin === endMin) return days.includes(day) ? { startMin: dayStart, endMin: dayStart + MIN_PER_DAY } : undefined;
+  if (startMin < endMin) {
+    const on = days.includes(day) && m >= startMin && m < endMin;
+    return on ? { startMin: dayStart + startMin, endMin: dayStart + endMin } : undefined;
+  }
+  if (m >= startMin) return days.includes(day) ? { startMin: dayStart + startMin, endMin: dayStart + MIN_PER_DAY + endMin } : undefined;
+  if (m < endMin && days.includes((day + 6) % 7)) return { startMin: dayStart - MIN_PER_DAY + startMin, endMin: dayStart + endMin };
+  return undefined;
+}
+
+/** Whether a shift covers an absolute time. */
+export function shiftCoversTime(shift: Shift, timeMin: number): boolean {
+  return shiftSpanAt(shift, timeMin) !== undefined;
 }
 
 /** Seeded instant headcounts from an interior's role [min, max] ranges. */

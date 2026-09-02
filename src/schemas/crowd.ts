@@ -1,11 +1,11 @@
 /**
  * Cheap crowd layer: typed counts plus pseudo-agents for every scope kind. A
- * CrowdAgent is not a full NPC; its crowdId is stable for the whole trip or
- * presence and is the handle the engine passes to instantiate() when the
- * player interacts. Groups carry the exact counts. City, district, edge,
- * stop and parcel scopes return a sample of agents capped by
- * CrowdOpts.maxAgents; a radius scope returns every street and stop agent
- * inside its circle.
+ * CrowdAgent is not a full NPC; its crowdId names one trip (a traversal of a
+ * street edge, a wait at a stop, an on-duty span at a parcel) and is the
+ * handle the engine passes to instantiate() when the player interacts.
+ * Groups carry the exact counts. City, district, edge, stop and parcel
+ * scopes return a sample of agents capped by CrowdOpts.maxAgents; a radius
+ * scope returns every street and stop agent inside its circle.
  */
 
 import type { Gender } from './npc.js';
@@ -46,17 +46,24 @@ export interface CrowdGroup {
 }
 
 export interface CrowdAgent {
-  /** Stable instantiable handle for this agent's whole trip or presence. */
+  /** Handle naming this agent's trip: the same id at every minute of the trip, instantiable throughout, bound to its person once instantiated. */
   crowdId: string;
+  /** The span the handle is alive, [startMin, endMin). */
+  trip: TripSpan;
   type: string;
   /** The gender the crowdId resolves to on instantiation. */
   gender: Gender;
   activity: Activity;
   place: PlaceRef;
-  /** 0..1 along the edge path, when place is an edge. */
+  /** 0..1 along the edge path when place is an edge: runs 0 to 1 over the trip for direction 1, 1 to 0 for direction -1. */
   progress: number;
   /** Travel direction along the edge path. */
   direction: 1 | -1;
+}
+
+export interface TripSpan {
+  startMin: number;
+  endMin: number;
 }
 
 export type PlaceRef =

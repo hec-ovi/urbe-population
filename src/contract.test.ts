@@ -170,6 +170,8 @@ describe('crowd layer', () => {
     const sim = make();
     const cafeDay = sim.crowd(MON_9, { kind: 'parcel', id: 'p_cafe' });
     expect(cafeDay.groups.reduce((s, g) => s + g.count, 0)).toBeGreaterThan(0);
+    expect(cafeDay.agents[0]!.trip.startMin).toBeLessThanOrEqual(MON_9);
+    expect(cafeDay.agents[0]!.trip.endMin).toBeGreaterThan(MON_9);
     const policeNight = sim.crowd(MON_3AM, { kind: 'parcel', id: 'p_police' });
     expect(policeNight.groups.reduce((s, g) => s + g.count, 0)).toBeGreaterThan(0);
   });
@@ -236,10 +238,43 @@ describe('lazy instantiation', () => {
     expect(sim.getNPC(inst.npcId)).toBe(inst);
   });
 
-  it('a stale crowd handle is rejected', () => {
+  it('a handle names one trip and resolves at every minute of it (read at 780, used at 782)', () => {
     const sim = make();
-    const agent = sim.crowd(MON_NOON, { kind: 'edge', id: 'e1' }).agents[0]!;
-    expect(code(() => sim.instantiate({ crowdId: agent.crowdId, timeMin: MON_NOON + 6 * 60 }))).toBe('E_STALE_HANDLE');
+    const held = sim.crowd(780, { kind: 'edge', id: 'e1' }).agents.filter((a) => a.trip.endMin > 782);
+    expect(held.length).toBeGreaterThan(0);
+    expect(sim.instantiate({ crowdId: held[0]!.crowdId, timeMin: 782 }).type).toBe(held[0]!.type);
+
+    const walker = sim.crowd(MON_NOON, { kind: 'edge', id: 'e1' }).agents[0]!;
+    expect(walker.trip.startMin).toBeLessThanOrEqual(MON_NOON);
+    expect(walker.trip.endMin).toBeGreaterThan(MON_NOON);
+    let along = -1;
+    for (let t = walker.trip.startMin; t < walker.trip.endMin; t++) {
+      const same = sim.crowd(t, { kind: 'edge', id: 'e1' }).agents.find((a) => a.crowdId === walker.crowdId)!;
+      expect(same.trip).toEqual(walker.trip);
+      const here = walker.direction === 1 ? same.progress : 1 - same.progress;
+      expect(here).toBeGreaterThan(along);
+      along = here;
+    }
+    const first = sim.instantiate({ crowdId: walker.crowdId, timeMin: walker.trip.startMin });
+    expect(sim.instantiate({ crowdId: walker.crowdId, timeMin: walker.trip.endMin - 1 }).npcId).toBe(first.npcId);
+
+    const busy = createSimulation({ ...makeInput(), params: { streetDensity: 20 } });
+    const wait = busy.crowd(8 * 60, { kind: 'stop', id: 'b1' }).agents[0]!;
+    expect(wait.trip.endMin - wait.trip.startMin).toBe(8);
+    const still = busy.crowd(wait.trip.endMin - 1, { kind: 'stop', id: 'b1' }).agents.find((a) => a.crowdId === wait.crowdId);
+    expect(still).toBeDefined();
+    expect(busy.instantiate({ crowdId: wait.crowdId, timeMin: wait.trip.endMin - 1 }).type).toBe(wait.type);
+  });
+
+  it('after its trip a handle is stale unless it was instantiated, which binds it for good', () => {
+    const sim = make();
+    const agents = sim.crowd(MON_NOON, { kind: 'edge', id: 'e1' }).agents;
+    const walker = agents[0]!;
+    const other = agents[1]!;
+    const person = sim.instantiate({ crowdId: walker.crowdId, timeMin: MON_NOON });
+    expect(sim.crowd(walker.trip.endMin, { kind: 'edge', id: 'e1' }).agents.some((a) => a.crowdId === walker.crowdId)).toBe(false);
+    expect(sim.instantiate({ crowdId: walker.crowdId, timeMin: walker.trip.endMin + 1440 }).npcId).toBe(person.npcId);
+    expect(code(() => sim.instantiate({ crowdId: other.crowdId, timeMin: other.trip.endMin }))).toBe('E_STALE_HANDLE');
   });
 
   it('routines cover the whole week with no gaps and repeat weekly', () => {
