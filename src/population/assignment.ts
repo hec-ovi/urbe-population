@@ -9,12 +9,13 @@ import { Permutation } from '../core/feistel.js';
 import { lastAtMost } from '../core/search.js';
 import { rand } from '../core/rng.js';
 import { chosenRoleCounts, isSecuritySlot, postOfSlot, shiftForSlot } from './jobs.js';
+import { admitsRole, DERIVED_ROLE, postCandidates } from './role-types.js';
 import { SlotOrder } from './slots.js';
 import type { ResolvedParams } from './defaults.js';
 import type { Demographics } from './demographics.js';
 import type { WorldModel, Workplace } from '../world/model.js';
 import type { NPCTypeDef, NPCTypeSet } from '../schemas/npc-types.js';
-import type { ParcelType, WealthTier } from '../schemas/blueprint.js';
+import type { WealthTier } from '../schemas/blueprint.js';
 import type { Shift } from '../schemas/npc.js';
 
 export interface JobAssignment {
@@ -24,24 +25,6 @@ export interface JobAssignment {
   role: string;
   shift: Shift;
 }
-
-const VENDOR_PARCELS: ParcelType[] = ['commerce', 'mall', 'restaurant', 'coffee_shop', 'hotel'];
-const AUTHORITY_PARCELS: ParcelType[] = ['police', 'military'];
-
-const DERIVED_ROLE: Partial<Record<ParcelType, string>> = {
-  coffee_shop: 'barista',
-  restaurant: 'waiter',
-  commerce: 'vendor',
-  mall: 'vendor',
-  hotel: 'receptionist',
-  offices: 'office_worker',
-  corpo: 'office_worker',
-  hospital: 'medic',
-  clinic: 'medic',
-  police: 'officer',
-  military: 'guard',
-  factory: 'operator',
-};
 
 export class AssignmentModel {
   private readonly employedPerm: Permutation;
@@ -114,7 +97,8 @@ export class AssignmentModel {
   typeOfAdult(adultIdx: number): NPCTypeDef {
     const job = this.jobOfAdult(adultIdx);
     if (job) {
-      const candidates = this.workerTypeCandidates(job.workplace.type, job.workplace.tier, job.role);
+      const { type: parcelType, tier } = job.workplace;
+      const candidates = postCandidates(this.typeSet.types, { parcelType, tier, role: job.role });
       const r = rand(this.seed, 'wtype', job.globalSlot);
       return candidates[r.weighted(candidates.map((t) => t.weight))]!;
     }
@@ -125,25 +109,26 @@ export class AssignmentModel {
     return candidates[r.weighted(candidates.map((t) => t.weight))]!;
   }
 
-  private workerTypeCandidates(parcelType: ParcelType, tier: WealthTier, role: string): NPCTypeDef[] {
-    const preferred = role === 'security' || AUTHORITY_PARCELS.includes(parcelType)
-      ? 'authority'
-      : VENDOR_PARCELS.includes(parcelType)
-        ? 'vendor'
-        : 'worker';
-    const matches = (t: NPCTypeDef, category: string): boolean =>
-      t.category === category &&
-      (!t.grounding.parcelTypes || t.grounding.parcelTypes.includes(parcelType)) &&
-      (!t.grounding.tiers || t.grounding.tiers.includes(tier));
-    let candidates = this.typeSet.types.filter((t) => matches(t, preferred));
-    if (candidates.length === 0) {
-      candidates = this.typeSet.types.filter(
-        (t) => ['worker', 'vendor', 'authority', 'transit'].includes(t.category) && (!t.grounding.parcelTypes || t.grounding.parcelTypes.includes(parcelType)),
-      );
+  /** The distinct roles a workplace's rota fills, interior role table first. */
+  rolesOfWorkplace(workplace: Workplace): string[] {
+    const support = this.world.interiors.get(workplace.parcelId);
+    const roles = new Set<string>();
+    if (support) {
+      const counts = chosenRoleCounts(this.seed, workplace.parcelId, support);
+      support.roles.forEach((slot, i) => {
+        if (counts[i]! > 0) roles.add(slot.role);
+      });
     }
-    if (candidates.length === 0) candidates = this.typeSet.types.filter((t) => t.category === 'worker');
-    if (candidates.length === 0) candidates = this.typeSet.types;
-    return candidates;
+    if (roles.size === 0) {
+      roles.add(DERIVED_ROLE[workplace.type] ?? 'worker');
+      if (workplace.staffing.securityPosts > 0) roles.add('security');
+    }
+    return [...roles];
+  }
+
+  /** Whether the typed set holds a category that admits this role. */
+  admitsRole(role: string): boolean {
+    return admitsRole(this.typeSet.types, role);
   }
 
   residentTypeCandidates(tier: WealthTier): NPCTypeDef[] {

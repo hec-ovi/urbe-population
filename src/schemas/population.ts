@@ -4,7 +4,8 @@
  * NPC types and by the engine for density tuning.
  */
 
-import type { WealthTier } from './blueprint.js';
+import type { ParcelType, WealthTier } from './blueprint.js';
+import type { NPCCategory } from './npc-types.js';
 
 export interface PopulationStats {
   /** Total residents. */
@@ -21,7 +22,21 @@ export interface PopulationStats {
    * agreed.
    */
   calibrationFactor: number;
+  /**
+   * Job roles the typed set has no admitting category for, so their workers
+   * take a type from outside it. Empty when the set covers the city.
+   */
+  typeGaps: TypeGap[];
   perDistrict: DistrictPopulation[];
+}
+
+/** A staffed role the typed set cannot type from a category that admits it. */
+export interface TypeGap {
+  role: string;
+  /** Categories that would have admitted the role, best first. */
+  categories: NPCCategory[];
+  /** Parcel types where the role is staffed. */
+  parcelTypes: ParcelType[];
 }
 
 export interface DistrictPopulation {

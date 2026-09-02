@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSimulation, restoreSimulation, DEFAULT_TYPE_SET, SimulationError } from './index.js';
 import { FIXTURE_BLUEPRINT, FIXTURE_INTERIORS } from './fixtures/small-city.js';
+import { FIXTURE_THEMED_TYPES } from './fixtures/themed-types.js';
 import type { CitySimulation, NPCInstance, SimulationInput, SimulationParams } from './index.js';
 
 const SEED = 'urbe-test-1';
@@ -578,6 +579,54 @@ describe('vendor queries and staffing', () => {
     expect(vendor.job!.role).toBe('receptionist');
     expect(sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9, role: 'receptionist' }).npcId).toBe(vendor.npcId);
     expect(code(() => sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9, role: 'barista' }))).toBe('E_NO_MATCH');
+  });
+
+  /** The categories the contract says may hold each post, best first. */
+  const ADMITS: Record<string, string[]> = {
+    barista: ['vendor', 'worker'],
+    waiter: ['vendor', 'worker'],
+    cook: ['vendor', 'worker'],
+    vendor: ['vendor'],
+    receptionist: ['vendor', 'worker'],
+    security: ['authority', 'worker'],
+    officer: ['authority'],
+    guard: ['authority', 'worker'],
+    office_worker: ['worker'],
+    medic: ['worker'],
+    operator: ['worker'],
+    cleaner: ['worker'],
+  };
+
+  it('every worker on duty holds a post their type category admits, on the themed vocabulary', () => {
+    const sim = createSimulation({ ...makeInput(), npcTypes: FIXTURE_THEMED_TYPES });
+    const category = new Map(FIXTURE_THEMED_TYPES.types.map((t) => [t.type, t.category]));
+    const pairs: string[] = [];
+    for (const parcel of FIXTURE_BLUEPRINT.parcels) {
+      for (const t of [MON_9, MON_NOON, 20 * 60, MON_3AM]) {
+        for (const agent of sim.crowd(t, { kind: 'parcel', id: parcel.id }).agents) {
+          const person = sim.instantiate({ crowdId: agent.crowdId, timeMin: t });
+          const role = person.job!.role;
+          pairs.push(`${parcel.type}/${role}/${person.type}`);
+          expect(ADMITS[role]).toBeDefined();
+          expect([role, category.get(person.type)]).toEqual([role, expect.stringMatching(new RegExp(`^(${ADMITS[role]!.join('|')})$`))]);
+        }
+      }
+    }
+    expect(new Set(pairs).size).toBeGreaterThan(10);
+    expect(sim.populationStats().typeGaps).toEqual([]);
+  });
+
+  it('a typed set with no category for a post says so and still staffs it', () => {
+    const holed = {
+      ...FIXTURE_THEMED_TYPES,
+      types: FIXTURE_THEMED_TYPES.types.filter((t) => t.category !== 'vendor' && t.category !== 'authority'),
+    };
+    const sim = createSimulation({ ...makeInput(), npcTypes: holed });
+    expect(sim.populationStats().typeGaps).toEqual([
+      { role: 'officer', categories: ['authority'], parcelTypes: ['police'] },
+      { role: 'vendor', categories: ['vendor'], parcelTypes: ['commerce', 'mall'] },
+    ]);
+    expect(sim.getNPCVendor({ parcelId: 'p_shop', timeMin: MON_NOON }).job!.role).toBe('vendor');
   });
 
   it('the 24/7 police station has night coverage', () => {

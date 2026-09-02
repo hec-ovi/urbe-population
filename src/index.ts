@@ -13,3 +13,4 @@ export type * from './schemas/population.js';
 export type * from './schemas/crowd.js';
 export type * from './schemas/npc.js';
 export { FIXTURE_BLUEPRINT, FIXTURE_INTERIORS, FIXTURE_CAFE_SUPPORT } from './fixtures/small-city.js';
+export { FIXTURE_THEMED_TYPES } from './fixtures/themed-types.js';

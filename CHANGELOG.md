@@ -1,5 +1,7 @@
 # Changelog
 
+0.7.0: a worker's type and the post they hold agree. The post's role picks the type categories that may fill it, best first (a vendor role from vendor types, a service or reception post from vendor then worker types, a guard post from authority then worker types), and grounding narrows before the category widens, so a themed set staffs its harbour crane operator at the factory and its mall vendor at the counter instead of behind a coffee machine. `populationStats().typeGaps` names any role the set has no admitting category for, and transit types hold no parcel post while a station is not a workplace.
+
 0.6.4: the blueprint slice is verified against atlas 0.7.0 and declares only what the population reads: districts, street edges with their sidewalk widths, parcels, transit and stats. Street class, level, nodes and crossings belong to the host that draws the city, so a new atlas street class such as `alley` needs no change here; pedestrians follow sidewalk width, and a highway deck carries none.
 
 0.6.3: the contract states where a worker's type and role each come from. The type is naming's, grounded on the parcel type, so a coffee shop staffs baristas; `job.role` is the interior's own role name for the post when the parcel ships an NpcSupport, so a `role` filter on getNPCVendor matches the interior's vocabulary and nothing else.
