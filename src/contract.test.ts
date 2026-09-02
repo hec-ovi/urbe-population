@@ -240,15 +240,15 @@ describe('lazy instantiation', () => {
 
   it('a handle names one trip and resolves at every minute of it (read at 780, used at 782)', () => {
     const sim = make();
-    const held = sim.crowd(780, { kind: 'edge', id: 'e1' }).agents.filter((a) => a.trip.endMin > 782);
+    const held = sim.crowd(780, { kind: 'edge', id: 'e1' }).agents.filter((a) => a.trip.endMin >= 782);
     expect(held.length).toBeGreaterThan(0);
     expect(sim.instantiate({ crowdId: held[0]!.crowdId, timeMin: 782 }).type).toBe(held[0]!.type);
 
     const walker = sim.crowd(MON_NOON, { kind: 'edge', id: 'e1' }).agents[0]!;
     expect(walker.trip.startMin).toBeLessThanOrEqual(MON_NOON);
-    expect(walker.trip.endMin).toBeGreaterThan(MON_NOON);
+    expect(walker.trip.endMin).toBeGreaterThanOrEqual(MON_NOON);
     let along = -1;
-    for (let t = walker.trip.startMin; t < walker.trip.endMin; t++) {
+    for (let t = walker.trip.startMin; t <= walker.trip.endMin; t++) {
       const same = sim.crowd(t, { kind: 'edge', id: 'e1' }).agents.find((a) => a.crowdId === walker.crowdId)!;
       expect(same.trip).toEqual(walker.trip);
       const here = walker.direction === 1 ? same.progress : 1 - same.progress;
@@ -256,14 +256,29 @@ describe('lazy instantiation', () => {
       along = here;
     }
     const first = sim.instantiate({ crowdId: walker.crowdId, timeMin: walker.trip.startMin });
-    expect(sim.instantiate({ crowdId: walker.crowdId, timeMin: walker.trip.endMin - 1 }).npcId).toBe(first.npcId);
+    expect(sim.instantiate({ crowdId: walker.crowdId, timeMin: walker.trip.endMin }).npcId).toBe(first.npcId);
 
     const busy = createSimulation({ ...makeInput(), params: { streetDensity: 20 } });
     const wait = busy.crowd(8 * 60, { kind: 'stop', id: 'b1' }).agents[0]!;
-    expect(wait.trip.endMin - wait.trip.startMin).toBe(8);
-    const still = busy.crowd(wait.trip.endMin - 1, { kind: 'stop', id: 'b1' }).agents.find((a) => a.crowdId === wait.crowdId);
+    expect(wait.trip.endMin - wait.trip.startMin + 1).toBe(8);
+    const still = busy.crowd(wait.trip.endMin, { kind: 'stop', id: 'b1' }).agents.find((a) => a.crowdId === wait.crowdId);
     expect(still).toBeDefined();
-    expect(busy.instantiate({ crowdId: wait.crowdId, timeMin: wait.trip.endMin - 1 }).type).toBe(wait.type);
+    expect(busy.instantiate({ crowdId: wait.crowdId, timeMin: wait.trip.endMin }).type).toBe(wait.type);
+  });
+
+  it('the last minute a trip states is a minute it is alive, on the shortest edge trip there is', () => {
+    const sim = make();
+    const shortest = sim
+      .crowd(780, { kind: 'city' }, { maxAgents: 64 })
+      .agents.filter((a) => a.place.kind === 'edge')
+      .sort((a, b) => a.trip.endMin - a.trip.startMin - (b.trip.endMin - b.trip.startMin))[0]!;
+    const { startMin, endMin } = shortest.trip;
+    const scope = { kind: 'edge', id: shortest.place.id } as const;
+    const listed = sim.crowd(endMin, scope).agents.find((a) => a.crowdId === shortest.crowdId);
+    expect(listed?.trip).toEqual(shortest.trip);
+    expect(sim.instantiate({ crowdId: shortest.crowdId, timeMin: endMin }).type).toBe(shortest.type);
+    expect(sim.crowd(endMin + 1, scope).agents.some((a) => a.crowdId === shortest.crowdId)).toBe(false);
+    expect(endMin - startMin + 1).toBeGreaterThanOrEqual(2);
   });
 
   it('every body in a slice instantiates into a person of its type and gender, rare types included', () => {
@@ -287,9 +302,9 @@ describe('lazy instantiation', () => {
     const walker = agents[0]!;
     const other = agents[1]!;
     const person = sim.instantiate({ crowdId: walker.crowdId, timeMin: MON_NOON });
-    expect(sim.crowd(walker.trip.endMin, { kind: 'edge', id: 'e1' }).agents.some((a) => a.crowdId === walker.crowdId)).toBe(false);
+    expect(sim.crowd(walker.trip.endMin + 1, { kind: 'edge', id: 'e1' }).agents.some((a) => a.crowdId === walker.crowdId)).toBe(false);
     expect(sim.instantiate({ crowdId: walker.crowdId, timeMin: walker.trip.endMin + 1440 }).npcId).toBe(person.npcId);
-    expect(code(() => sim.instantiate({ crowdId: other.crowdId, timeMin: other.trip.endMin }))).toBe('E_STALE_HANDLE');
+    expect(code(() => sim.instantiate({ crowdId: other.crowdId, timeMin: other.trip.endMin + 1 }))).toBe('E_STALE_HANDLE');
   });
 
   it('routines cover the whole week with no gaps and repeat weekly', () => {

@@ -1,5 +1,7 @@
 # Changelog
 
+0.6.2: a trip's stated span is inclusive on both ends. `trip.endMin` is the last whole minute the body is on its edge, at its stop or on shift, so a handle read at 780 instantiates at 780 and 781 and the next body of that slot starts at 782. Consumers that hold a person until `endMin` keep them for the whole trip instead of losing the final minute.
+
 0.6.1: a street or stop handle resolves to a real free person of its type and gender. Seeded probes prefer someone whose routine has them outdoors at that minute; when the type is too rare for the probes to land on, one pass over the adult index takes the first free match, so the village's two police officers instantiate whenever one is free and E_NO_MATCH means the city has nobody.
 
 0.6: a crowd handle names one trip. A street slot runs back-to-back traversals of its edge at walking pace and a stop slot 8 minute waits, staggered so trips start at every minute, each typed and counted at its own start minute; the same crowdId comes back on every poll with progress advancing in its direction, `agent.trip` states the span, instantiate resolves the handle at any minute of the trip and, once instantiated, at any time. Parcel agents state their on-duty span the same way.

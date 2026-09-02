@@ -1,6 +1,6 @@
 {
   "name": "@urbe/simulation",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Statistical NPC city population with lazy deterministic instantiation",
   "type": "module",
   "main": "dist/index.js",

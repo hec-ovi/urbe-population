@@ -48,7 +48,7 @@ export interface CrowdGroup {
 export interface CrowdAgent {
   /** Handle naming this agent's trip: the same id at every minute of the trip, instantiable throughout, bound to its person once instantiated. */
   crowdId: string;
-  /** The span the handle is alive, [startMin, endMin). */
+  /** Whole minutes the handle is alive, startMin to endMin inclusive. */
   trip: TripSpan;
   type: string;
   /** The gender the crowdId resolves to on instantiation. */
@@ -63,6 +63,7 @@ export interface CrowdAgent {
 
 export interface TripSpan {
   startMin: number;
+  /** Last whole minute of the trip; the handle instantiates at it and is stale after it. */
   endMin: number;
 }
 

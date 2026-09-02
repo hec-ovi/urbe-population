@@ -365,11 +365,11 @@ export class CrowdModel {
     const globalSlot = wp.slotOffset + local;
     const adultIdx = this.assignment.adultOfSlot(globalSlot);
     if (adultIdx === undefined) return undefined;
-    const trip = shiftSpanAt(this.assignment.jobOfSlot(globalSlot).shift, timeMin);
-    if (!trip) return undefined;
+    const shift = shiftSpanAt(this.assignment.jobOfSlot(globalSlot).shift, timeMin);
+    if (!shift) return undefined;
     return {
       crowdId: parcelHandle(wp.parcelId, local),
-      trip,
+      trip: { startMin: shift.startMin, endMin: shift.endMin - 1 },
       type: this.assignment.typeOfAdult(adultIdx).type,
       gender: this.genders.of(adultId(adultIdx)),
       activity: 'working',

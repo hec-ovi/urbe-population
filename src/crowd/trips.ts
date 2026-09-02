@@ -1,15 +1,17 @@
 /**
  * Trip clock for one place. Slot s runs back-to-back trips of `period`
  * minutes staggered by s mod period, so trips start at every minute and a
- * handle {slot, trip} names one span [startMin, endMin). A trip exists when
- * its slot is below the place's count at its own start minute, so the count
- * read at the poll minute never ends a trip early.
+ * handle {slot, trip} names one span of whole minutes, startMin to endMin
+ * inclusive: the body is there at endMin and the next trip starts the minute
+ * after. A trip exists when its slot is below the place's count at its own
+ * start minute, so the count read at the poll minute never ends a trip early.
  */
 
 export interface Trip {
   slot: number;
   trip: number;
   startMin: number;
+  /** Last whole minute of the trip. */
   endMin: number;
 }
 
@@ -24,7 +26,7 @@ export class TripSchedule {
     const startMin = trip * this.period + (slot % this.period);
     if (!(t >= startMin && t < startMin + this.period)) return undefined;
     if (slot >= countAt(startMin)) return undefined;
-    return { slot, trip, startMin, endMin: startMin + this.period };
+    return this.span(slot, trip, startMin);
   }
 
   /** Every trip in flight at t, slots ascending. */
@@ -34,9 +36,13 @@ export class TripSchedule {
     const top = Math.max(0, ...starts.map((s) => s.count));
     for (let slot = 0; slot < top; slot++) {
       const { startMin, count } = starts[slot % this.period]!;
-      if (slot < count) out.push({ slot, trip: Math.floor(startMin / this.period), startMin, endMin: startMin + this.period });
+      if (slot < count) out.push(this.span(slot, Math.floor(startMin / this.period), startMin));
     }
     return out;
+  }
+
+  private span(slot: number, trip: number, startMin: number): Trip {
+    return { slot, trip, startMin, endMin: startMin + this.period - 1 };
   }
 
   /** How many trips are in flight at t, without listing them. */
