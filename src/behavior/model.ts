@@ -1,7 +1,8 @@
 /**
  * Behavior projection for instanced NPCs: routine entry at a time mapped to a
  * state-machine snapshot, with interior anchor steps when the workplace has
- * an NpcSupport instance. Interruptible, resumable, deterministic.
+ * an NpcSupport instance. A platform post reads as street work at its stop and
+ * a driver as transit on their route. Interruptible, resumable, deterministic.
  */
 
 import { rand } from '../core/rng.js';
@@ -30,7 +31,7 @@ export class BehaviorModel {
     if (entry.activity === 'sleeping' || (entry.activity === 'home' && entry.place.kind === 'parcel')) {
       return { mode: 'home', activity: entry.activity, place: entry.place, interrupted };
     }
-    if (entry.transitLeg) {
+    if (entry.transitLeg || entry.place.kind === 'route') {
       return { mode: 'transit', activity: entry.activity, place: entry.place, interrupted };
     }
     if (entry.place.kind === 'edge' || entry.place.kind === 'stop') {

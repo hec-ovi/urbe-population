@@ -10,9 +10,9 @@ import type { WorldModel } from '../world/model.js';
 import type { DistrictPopulation, PopulationStats, TierPopulation, TypeGap } from '../schemas/population.js';
 
 /**
- * Roles the typed set cannot fill from an admitting category, with the parcel
- * types where they are staffed: the set has a hole and its workers take a type
- * from outside their role's categories.
+ * Roles the typed set cannot fill from an admitting category, with the places
+ * where they are staffed: the set has a hole and its workers take a type from
+ * outside their role's categories.
  */
 function typeGaps(world: WorldModel, assignment: AssignmentModel): TypeGap[] {
   const gaps = new Map<string, TypeGap>();
@@ -21,11 +21,20 @@ function typeGaps(world: WorldModel, assignment: AssignmentModel): TypeGap[] {
     for (const role of assignment.rolesOfWorkplace(workplace)) {
       if (assignment.admitsRole(role)) continue;
       const gap = gaps.get(role) ?? { role, categories: categoriesForRole(role), parcelTypes: [] };
-      if (!gap.parcelTypes.includes(workplace.type)) gap.parcelTypes.push(workplace.type);
+      if (workplace.parcelType) {
+        if (!gap.parcelTypes.includes(workplace.parcelType)) gap.parcelTypes.push(workplace.parcelType);
+      } else {
+        const place = workplace.place.kind === 'stop' ? 'station' : 'route';
+        gap.nonParcelPlaces ??= [];
+        if (!gap.nonParcelPlaces.includes(place)) gap.nonParcelPlaces.push(place);
+      }
       gaps.set(role, gap);
     }
   }
-  for (const gap of gaps.values()) gap.parcelTypes.sort();
+  for (const gap of gaps.values()) {
+    gap.parcelTypes.sort();
+    gap.nonParcelPlaces?.sort();
+  }
   return [...gaps.values()].sort((a, b) => a.role.localeCompare(b.role));
 }
 

@@ -15,6 +15,12 @@ import type { RoutineEntry, TransitLeg } from '../schemas/npc.js';
 import type { Vec2 } from '../schemas/blueprint.js';
 import type { Activity, PlaceRef } from '../schemas/crowd.js';
 
+/** One end of a commute: where the person stands, and the place that names it. */
+interface CommuteEnd {
+  point: Vec2;
+  place: PlaceRef;
+}
+
 interface Segment {
   startW: number;
   activity: Activity;
@@ -55,9 +61,11 @@ export class RoutineBuilder {
     const shiftLen = (job.shift.endMin - job.shift.startMin + MIN_PER_DAY) % MIN_PER_DAY || 8 * 60;
     const startW = d * MIN_PER_DAY + job.shift.startMin;
     const endW = startW + shiftLen;
-    const workPlace: PlaceRef = { kind: 'parcel', id: job.workplace.parcelId };
+    const workPlace: PlaceRef = job.workplace.place;
+    const home = this.endOfParcel(homeParcelId);
+    const work = this.endOfWorkplace(job.workplace);
 
-    const legs = this.commuteLegs(homeParcelId, job.workplace.parcelId, job.shift.startMin);
+    const legs = this.commuteLegs(home, work, job.shift.startMin);
     let cursor = startW;
     for (let i = legs.length - 1; i >= 0; i--) {
       cursor -= legs[i]!.minutes;
@@ -70,7 +78,7 @@ export class RoutineBuilder {
     }
     out.push({ startW: wrapW(startW), activity: 'working', place: workPlace });
 
-    const back = this.commuteLegs(job.workplace.parcelId, homeParcelId, (job.shift.endMin + 5) % MIN_PER_DAY);
+    const back = this.commuteLegs(work, home, (job.shift.endMin + 5) % MIN_PER_DAY);
     let backCursor = endW;
     for (const leg of back) {
       out.push({ startW: wrapW(backCursor), activity: leg.activity, place: leg.place, ...(leg.transitLeg ? { transitLeg: leg.transitLeg } : {}) });
@@ -120,34 +128,47 @@ export class RoutineBuilder {
     out.push({ startW: base + 22 * 60 + 45 + r.int(61), activity: 'sleeping', place: homePlace });
   }
 
+  /** Where a home parcel puts a commuter: on its access point, walking its street. */
+  private endOfParcel(parcelId: string): CommuteEnd {
+    const p = this.world.parcelsById.get(parcelId)!;
+    return { point: p.access.point, place: { kind: 'edge', id: p.access.edgeId } };
+  }
+
+  /** Where a job puts a commuter: a building's door, a station itself, or a route's first terminus. */
+  private endOfWorkplace(workplace: JobAssignment['workplace']): CommuteEnd {
+    if (workplace.place.kind === 'parcel') return this.endOfParcel(workplace.place.id);
+    if (workplace.place.kind === 'stop') {
+      return { point: this.world.stopsById.get(workplace.place.id)!.position, place: workplace.place };
+    }
+    const route = this.world.routes.find((r) => r.id === workplace.place.id)!;
+    const terminus = this.world.stopsById.get(route.stopIds[0]!)!;
+    return { point: terminus.position, place: { kind: 'stop', id: terminus.id } };
+  }
+
   /** Ordered commute legs with durations; transit when a direct in-service route exists. */
   private commuteLegs(
-    fromParcelId: string,
-    toParcelId: string,
+    from: CommuteEnd,
+    to: CommuteEnd,
     departMin: number,
   ): { minutes: number; activity: Activity; place: PlaceRef; transitLeg?: TransitLeg }[] {
-    const from = this.world.parcelsById.get(fromParcelId)!;
-    const to = this.world.parcelsById.get(toParcelId)!;
-    const fromEdge: PlaceRef = { kind: 'edge', id: from.access.edgeId };
-    const toEdge: PlaceRef = { kind: 'edge', id: to.access.edgeId };
-    const boardStop = this.world.nearestStopId(from.access.point);
-    const alightStop = this.world.nearestStopId(to.access.point);
+    const boardStop = this.world.nearestStopId(from.point);
+    const alightStop = this.world.nearestStopId(to.point);
 
     if (boardStop && alightStop && boardStop !== alightStop) {
       const route = this.world.directRoute(boardStop, alightStop) ?? this.world.directRoute(alightStop, boardStop);
       if (route && this.inService(route, departMin)) {
-        const wa = walkMinutes(from.access.point, this.world.stopsById.get(boardStop)!.position, 1, 30);
-        const wb = walkMinutes(this.world.stopsById.get(alightStop)!.position, to.access.point, 1, 30);
+        const wa = walkMinutes(from.point, this.world.stopsById.get(boardStop)!.position, 1, 30);
+        const wb = walkMinutes(this.world.stopsById.get(alightStop)!.position, to.point, 1, 30);
         const ride = Math.max(1, this.rideBetween(route, boardStop, alightStop));
         return [
-          { minutes: wa, activity: 'commuting', place: fromEdge },
+          { minutes: wa, activity: 'commuting', place: from.place },
           { minutes: Math.max(1, Math.round(route.headwayMin / 2)), activity: 'transit_wait', place: { kind: 'stop', id: boardStop } },
           { minutes: ride, activity: 'commuting', place: { kind: 'route', id: route.id }, transitLeg: { routeId: route.id, boardStopId: boardStop, alightStopId: alightStop } },
-          { minutes: wb, activity: 'commuting', place: toEdge },
+          { minutes: wb, activity: 'commuting', place: to.place },
         ];
       }
     }
-    return [{ minutes: walkMinutes(from.access.point, to.access.point, 5, 120), activity: 'commuting', place: fromEdge }];
+    return [{ minutes: walkMinutes(from.point, to.point, 5, 120), activity: 'commuting', place: from.place }];
   }
 
   private inService(route: ServiceRoute, minuteOfDay: number): boolean {
@@ -167,10 +188,11 @@ export class RoutineBuilder {
 
   private pickVenue(npcId: string, salt: number, homeParcelId: string): string | undefined {
     const home = this.world.parcelsById.get(homeParcelId)!;
-    let candidates = this.world.workplaces.filter((w) => VENUE_TYPES.has(w.type) && w.districtId === home.districtId);
-    if (candidates.length === 0) candidates = this.world.workplaces.filter((w) => VENUE_TYPES.has(w.type));
+    const venues = this.world.workplaces.filter((w) => w.parcelType !== undefined && VENUE_TYPES.has(w.parcelType));
+    let candidates = venues.filter((w) => w.districtId === home.districtId);
+    if (candidates.length === 0) candidates = venues;
     if (candidates.length === 0) return undefined;
-    return rand(this.seed, 'venue', npcId, salt).pick(candidates).parcelId;
+    return rand(this.seed, 'venue', npcId, salt).pick(candidates).place.id;
   }
 
   private pickEdge(npcId: string, salt: number, homeParcelId: string): PlaceRef {

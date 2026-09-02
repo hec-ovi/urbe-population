@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest';
 import { createSimulation, restoreSimulation, DEFAULT_TYPE_SET, SimulationError } from './index.js';
 import { FIXTURE_BLUEPRINT, FIXTURE_INTERIORS } from './fixtures/small-city.js';
 import { FIXTURE_THEMED_TYPES } from './fixtures/themed-types.js';
-import type { CitySimulation, NPCInstance, SimulationInput, SimulationParams } from './index.js';
+import type { CitySimulation, CrowdScope, NPCInstance, SimulationInput, SimulationParams } from './index.js';
 
 const SEED = 'urbe-test-1';
 const MON_9 = 9 * 60;
 const MON_NOON = 12 * 60;
 const MON_3AM = 3 * 60;
+/** The fixture's rail stations: two on the subway line, one shared with the train line. */
+const RAIL_STATIONS = ['s0', 's1', 't0'];
 
 function makeInput(params?: SimulationParams): SimulationInput {
   return { seed: SEED, blueprint: FIXTURE_BLUEPRINT, interiors: FIXTURE_INTERIORS, ...(params ? { params } : {}) };
@@ -563,6 +565,8 @@ describe('vendor queries and staffing', () => {
     expect(vendor.job).toBeDefined();
     expect(vendor.job!.parcelId).toBe('p_cafe');
     expect(vendor.job!.role).toBe('barista');
+    expect('place' in vendor.job!).toBe(false);
+    expect(vendor.transitJob).toBeUndefined();
     const repeat = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
     expect(repeat.npcId).toBe(vendor.npcId);
   });
@@ -584,6 +588,9 @@ describe('vendor queries and staffing', () => {
   /** The categories the contract says may hold each post, best first. */
   const ADMITS: Record<string, string[]> = {
     barista: ['vendor', 'worker'],
+    platform_staff: ['transit'],
+    fare_agent: ['transit'],
+    driver: ['transit'],
     waiter: ['vendor', 'worker'],
     cook: ['vendor', 'worker'],
     vendor: ['vendor'],
@@ -600,18 +607,25 @@ describe('vendor queries and staffing', () => {
   it('every worker on duty holds a post their type category admits, on the themed vocabulary', () => {
     const sim = createSimulation({ ...makeInput(), npcTypes: FIXTURE_THEMED_TYPES });
     const category = new Map(FIXTURE_THEMED_TYPES.types.map((t) => [t.type, t.category]));
+    const scopes: Exclude<CrowdScope, { kind: 'radius' | 'city' }>[] = [
+      ...FIXTURE_BLUEPRINT.parcels.map((p) => ({ kind: 'parcel', id: p.id }) as const),
+      ...RAIL_STATIONS.map((id) => ({ kind: 'stop', id }) as const),
+    ];
     const pairs: string[] = [];
-    for (const parcel of FIXTURE_BLUEPRINT.parcels) {
+    for (const scope of scopes) {
       for (const t of [MON_9, MON_NOON, 20 * 60, MON_3AM]) {
-        for (const agent of sim.crowd(t, { kind: 'parcel', id: parcel.id }).agents) {
+        for (const agent of sim.crowd(t, scope).agents) {
+          if (agent.activity !== 'working') continue;
           const person = sim.instantiate({ crowdId: agent.crowdId, timeMin: t });
-          const role = person.job!.role;
-          pairs.push(`${parcel.type}/${role}/${person.type}`);
+          const role = (person.job ?? person.transitJob)!.role;
+          pairs.push(`${scope.id}/${role}/${person.type}`);
           expect(ADMITS[role]).toBeDefined();
           expect([role, category.get(person.type)]).toEqual([role, expect.stringMatching(new RegExp(`^(${ADMITS[role]!.join('|')})$`))]);
         }
       }
     }
+    const driver = sim.getNPCVendor({ role: 'driver', timeMin: MON_9 });
+    expect(category.get(driver.type)).toBe('transit');
     expect(new Set(pairs).size).toBeGreaterThan(10);
     expect(sim.populationStats().typeGaps).toEqual([]);
   });
@@ -627,6 +641,63 @@ describe('vendor queries and staffing', () => {
       { role: 'vendor', categories: ['vendor'], parcelTypes: ['commerce', 'mall'] },
     ]);
     expect(sim.getNPCVendor({ parcelId: 'p_shop', timeMin: MON_NOON }).job!.role).toBe('vendor');
+  });
+
+  it('reports uncovered transit posts without changing the parcel gap shape', () => {
+    const holed = {
+      ...FIXTURE_THEMED_TYPES,
+      types: FIXTURE_THEMED_TYPES.types.filter((t) => t.category !== 'transit'),
+    };
+    const gaps = createSimulation({ ...makeInput(), npcTypes: holed }).populationStats().typeGaps;
+    expect(gaps.find((gap) => gap.role === 'platform_staff')).toEqual({
+      role: 'platform_staff',
+      categories: ['transit'],
+      parcelTypes: [],
+      nonParcelPlaces: ['station'],
+    });
+    expect(gaps.find((gap) => gap.role === 'driver')).toEqual({
+      role: 'driver',
+      categories: ['transit'],
+      parcelTypes: [],
+      nonParcelPlaces: ['route'],
+    });
+  });
+
+
+  it('a rail station is manned through its service hours and dark when the service stops', () => {
+    const sim = make();
+    const onDuty = (id: string, t: number): typeof staff => {
+      const staff = sim.crowd(t, { kind: 'stop', id }).agents.filter((a) => a.activity === 'working');
+      return staff;
+    };
+    for (const id of RAIL_STATIONS) {
+      for (const t of [6 * 60, 12 * 60, 18 * 60, 23 * 60]) {
+        expect([id, t, onDuty(id, t).length > 0]).toEqual([id, t, true]);
+      }
+      expect(onDuty(id, MON_3AM)).toHaveLength(0);
+    }
+    // an interchange carries a platform post per line, plus its fare hall
+    expect(onDuty('s1', MON_9).length).toBeGreaterThan(onDuty('s0', MON_9).length);
+    expect(sim.crowd(MON_9, { kind: 'stop', id: 'b0' }).agents.every((a) => a.activity !== 'working')).toBe(true);
+
+    const person = sim.instantiate({ crowdId: onDuty('s1', MON_9)[0]!.crowdId, timeMin: MON_9 });
+    expect(person.job).toBeUndefined();
+    expect(person.transitJob!.place).toEqual({ kind: 'stop', id: 's1' });
+    expect(['platform_staff', 'fare_agent']).toContain(person.transitJob!.role);
+    expect(sim.behaviorAt(person.npcId, MON_9)).toMatchObject({ mode: 'street', activity: 'working', place: { kind: 'stop', id: 's1' } });
+  });
+
+  it('a bus route runs drivers on its vehicles, not in a building', () => {
+    const sim = make();
+    const driver = sim.getNPCVendor({ role: 'driver', timeMin: MON_9 });
+    expect(driver.job).toBeUndefined();
+    expect(driver.transitJob!.place).toEqual({ kind: 'route', id: 'r0' });
+    expect(sim.behaviorAt(driver.npcId, driver.transitJob!.shift.startMin + 60)).toMatchObject({
+      mode: 'transit',
+      activity: 'working',
+      place: { kind: 'route', id: 'r0' },
+    });
+    expect(code(() => sim.getNPCVendor({ role: 'driver', timeMin: MON_3AM + 60 }))).toBe('E_NO_MATCH');
   });
 
   it('the 24/7 police station has night coverage', () => {
@@ -645,7 +716,7 @@ describe('vendor queries and staffing', () => {
     expect(morningSleep).toBe(true);
   });
 
-  it('cross-district commuters ride the bus with a concrete route and stops', () => {
+  it('cross-district commuters ride a concrete route, boarding and alighting on its own stops', () => {
     const sim = make();
     const workers = [
       sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 }),
@@ -654,9 +725,18 @@ describe('vendor queries and staffing', () => {
     ];
     const legs = workers.flatMap((w) => w.routine.filter((e) => e.transitLeg));
     expect(legs.length).toBeGreaterThan(0);
+    const lines = [
+      ...FIXTURE_BLUEPRINT.transit.busRoutes.map((r) => [r.id, r.stopIds] as const),
+      ...FIXTURE_BLUEPRINT.transit.trainLines.map((r) => [r.id, r.stationIds] as const),
+      ...FIXTURE_BLUEPRINT.transit.subwayLines.map((r) => [r.id, r.stationIds] as const),
+    ];
     for (const leg of legs) {
-      expect(leg.transitLeg!.routeId).toBe('r0');
-      expect(['b0', 'b1', 'b2']).toContain(leg.transitLeg!.boardStopId);
+      const line = lines.find(([id]) => id === leg.transitLeg!.routeId);
+      expect(line).toBeDefined();
+      const stops = line![1] as readonly string[];
+      expect(stops).toContain(leg.transitLeg!.boardStopId);
+      expect(stops).toContain(leg.transitLeg!.alightStopId);
+      expect(leg.transitLeg!.boardStopId).not.toBe(leg.transitLeg!.alightStopId);
     }
   });
 });

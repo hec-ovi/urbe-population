@@ -4,7 +4,7 @@
  */
 
 import { validateInput } from './validate.js';
-import { WorldModel } from '../world/model.js';
+import { WorldModel, type Workplace } from '../world/model.js';
 import { HousingStock } from '../population/housing.js';
 import { HouseholdLedger } from '../population/household.js';
 import { calibrateHousing } from '../population/calibration.js';
@@ -28,7 +28,7 @@ import type { NamePool, NPCTypeSet } from '../schemas/npc-types.js';
 import type { SimulationParams } from '../schemas/params.js';
 import type { PopulationStats } from '../schemas/population.js';
 import type { CrowdOpts, CrowdScope, CrowdSlice } from '../schemas/crowd.js';
-import type { BehaviorState, FlagOp, NPCInstance, NPCQuery, ReservedSpec, VendorQuery } from '../schemas/npc.js';
+import type { BehaviorState, FlagOp, JobPlace, NPCInstance, NPCQuery, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 
 export interface SimulationInput {
   seed: string | number;
@@ -149,9 +149,10 @@ export class CitySimulation {
         if (!inst.flags.custom.includes(op.tag)) inst.flags.custom.push(op.tag);
         break;
       case 'resign': {
-        if (!inst.job) throw new SimulationError('E_CONFLICT', `NPC ${npcId} has no job to resign`);
+        if (!inst.job && !inst.transitJob) throw new SimulationError('E_CONFLICT', `NPC ${npcId} has no job to resign`);
         this.vacateJob(npcId);
         delete inst.job;
+        delete inst.transitJob;
         this.rebuildRoutine(inst);
         break;
       }
@@ -165,6 +166,7 @@ export class CitySimulation {
           role: 'executive',
           shift: { startMin: 9 * 60, endMin: 18 * 60, days: [0, 1, 2, 3, 4], kind: 'day' },
         };
+        delete inst.transitJob;
         this.rebuildRoutine(inst);
         break;
       }
@@ -246,15 +248,24 @@ export class CitySimulation {
     }
   }
 
+  /** The workplace a job's place names: a building, a station, or a route. */
+  private workplaceOf(place: JobPlace): Workplace | undefined {
+    if (place.kind === 'parcel') return this.world.workplacesByParcel.get(place.id);
+    if (place.kind === 'stop') return this.world.workplacesByStop.get(place.id);
+    return this.world.workplaces.find((w) => w.place.kind === 'route' && w.place.id === place.id);
+  }
+
   private rebuildRoutine(inst: NPCInstance): void {
     const category = this.typeSet.types.find((t) => t.type === inst.type)?.category ?? 'resident';
-    const job = inst.job
+    const place: JobPlace | undefined = inst.job ? { kind: 'parcel', id: inst.job.parcelId } : inst.transitJob?.place;
+    const publicJob = inst.job ?? inst.transitJob;
+    const job = place && publicJob
       ? {
-          workplace: this.world.workplacesByParcel.get(inst.job.parcelId)!,
+          workplace: this.workplaceOf(place)!,
           localSlot: 0,
           globalSlot: -1,
-          role: inst.job.role,
-          shift: inst.job.shift,
+          role: publicJob.role,
+          shift: publicJob.shift,
         }
       : undefined;
     inst.routine = new RoutineBuilder(this.input.seed, this.world).build(inst.npcId, category, inst.home.parcelId, job);

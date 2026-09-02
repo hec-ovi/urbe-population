@@ -88,10 +88,13 @@ export const FIXTURE_BLUEPRINT: CityBlueprint = {
       { id: 'b2', edgeId: 'e1', position: [900, 250], districtId: 'd1' },
     ],
     busRoutes: [{ id: 'r0', stopIds: ['b0', 'b1', 'b2'] }],
-    trainStations: [],
-    trainLines: [],
-    subwayStations: [],
-    subwayLines: [],
+    trainStations: [{ id: 't0', position: [1100, 480], districtId: 'd2' }],
+    trainLines: [{ id: 'tl0', stationIds: ['s1', 't0'] }],
+    subwayStations: [
+      { id: 's0', position: [200, 480], districtId: 'd0' },
+      { id: 's1', position: [700, 480], districtId: 'd1' },
+    ],
+    subwayLines: [{ id: 'sl0', stationIds: ['s0', 's1'] }],
   },
   stats: {
     population: 0,

@@ -20,7 +20,10 @@ export interface NPCInstance {
   gender: Gender;
   type: string;
   home: { parcelId: string; unit: number };
+  /** Building employment. Kept stable for existing consumers. */
   job?: Job;
+  /** Station or vehicle employment. Absent for building workers. */
+  transitJob?: TransitJob;
   family: FamilyMember[];
   /** Weekly plan; entries cover the full week with no gaps. */
   routine: RoutineEntry[];
@@ -33,6 +36,17 @@ export interface Job {
   role: string;
   shift: Shift;
 }
+
+export interface TransitJob {
+  place: TransitJobPlace;
+  role: string;
+  shift: Shift;
+}
+
+export type TransitJobPlace = { kind: 'stop' | 'route'; id: string };
+
+/** Internal and routine place vocabulary for every kind of workplace. */
+export type JobPlace = { kind: 'parcel'; id: string } | TransitJobPlace;
 
 export interface Shift {
   /** Minute of day; endMin < startMin spans midnight. */

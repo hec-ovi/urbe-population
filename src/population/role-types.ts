@@ -41,6 +41,9 @@ const ROLE_CATEGORIES: Record<string, NPCCategory[]> = {
   trainer: ['worker'],
   cleaner: ['worker'],
   worker: ['worker'],
+  platform_staff: ['transit'],
+  fare_agent: ['transit'],
+  driver: ['transit'],
   resident: ['resident', 'worker'],
   guest: ['resident', 'worker'],
 };
@@ -51,7 +54,8 @@ const DEFAULT_CATEGORIES: NPCCategory[] = ['worker', 'vendor'];
 const EMPLOYABLE: NPCCategory[] = ['worker', 'vendor', 'authority', 'transit'];
 
 export interface Post {
-  parcelType: ParcelType;
+  /** The building's use; absent at a transit post, where only ungrounded types fit. */
+  parcelType?: ParcelType;
   tier: WealthTier;
   role: string;
 }
@@ -76,7 +80,8 @@ export function postCandidates(types: NPCTypeDef[], post: Post): NPCTypeDef[] {
   const admitted = categoriesForRole(post.role);
   const admits = (t: NPCTypeDef): boolean => admitted.includes(t.category);
   const employable = (t: NPCTypeDef): boolean => EMPLOYABLE.includes(t.category);
-  const onParcel = (t: NPCTypeDef): boolean => !t.grounding.parcelTypes || t.grounding.parcelTypes.includes(post.parcelType);
+  const onParcel = (t: NPCTypeDef): boolean =>
+    !t.grounding.parcelTypes || (post.parcelType !== undefined && t.grounding.parcelTypes.includes(post.parcelType));
   const onTier = (t: NPCTypeDef): boolean => !t.grounding.tiers || t.grounding.tiers.includes(post.tier);
   const rungs: ((t: NPCTypeDef) => boolean)[] = [
     (t) => admits(t) && onParcel(t) && onTier(t),

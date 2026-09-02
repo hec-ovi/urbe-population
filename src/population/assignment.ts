@@ -74,19 +74,25 @@ export class AssignmentModel {
     return this.employedPerm.inverse(rank);
   }
 
-  /** The role a slot works: its post, which the interior's role table names when there is one. */
+  /**
+   * The role a slot works: its post, named by the transit rota where the
+   * workplace has one, else by the interior's role table, else derived from
+   * what the building is.
+   */
   roleOfSlot(workplace: Workplace, localSlot: number): string {
-    const support = this.world.interiors.get(workplace.parcelId);
+    const post = postOfSlot(workplace.staffing, localSlot);
+    if (workplace.postRoles) return workplace.postRoles[post] ?? workplace.postRoles[0]!;
+    const support = this.world.interiors.get(workplace.place.id);
     if (support) {
-      const counts = chosenRoleCounts(this.seed, workplace.parcelId, support);
-      let cursor = postOfSlot(workplace.staffing, localSlot);
+      const counts = chosenRoleCounts(this.seed, workplace.place.id, support);
+      let cursor = post;
       for (let i = 0; i < support.roles.length; i++) {
         if (cursor < counts[i]!) return support.roles[i]!.role;
         cursor -= counts[i]!;
       }
     }
     if (isSecuritySlot(workplace.staffing, localSlot)) return 'security';
-    return DERIVED_ROLE[workplace.type] ?? 'worker';
+    return (workplace.parcelType ? DERIVED_ROLE[workplace.parcelType] : undefined) ?? 'worker';
   }
 
   typeDef(type: string): NPCTypeDef | undefined {
@@ -97,8 +103,8 @@ export class AssignmentModel {
   typeOfAdult(adultIdx: number): NPCTypeDef {
     const job = this.jobOfAdult(adultIdx);
     if (job) {
-      const { type: parcelType, tier } = job.workplace;
-      const candidates = postCandidates(this.typeSet.types, { parcelType, tier, role: job.role });
+      const { parcelType, tier } = job.workplace;
+      const candidates = postCandidates(this.typeSet.types, { ...(parcelType ? { parcelType } : {}), tier, role: job.role });
       const r = rand(this.seed, 'wtype', job.globalSlot);
       return candidates[r.weighted(candidates.map((t) => t.weight))]!;
     }
@@ -109,18 +115,19 @@ export class AssignmentModel {
     return candidates[r.weighted(candidates.map((t) => t.weight))]!;
   }
 
-  /** The distinct roles a workplace's rota fills, interior role table first. */
+  /** The distinct roles a workplace's rota fills, transit rota and interior role table first. */
   rolesOfWorkplace(workplace: Workplace): string[] {
-    const support = this.world.interiors.get(workplace.parcelId);
+    if (workplace.postRoles) return [...new Set(workplace.postRoles)];
+    const support = this.world.interiors.get(workplace.place.id);
     const roles = new Set<string>();
     if (support) {
-      const counts = chosenRoleCounts(this.seed, workplace.parcelId, support);
+      const counts = chosenRoleCounts(this.seed, workplace.place.id, support);
       support.roles.forEach((slot, i) => {
         if (counts[i]! > 0) roles.add(slot.role);
       });
     }
     if (roles.size === 0) {
-      roles.add(DERIVED_ROLE[workplace.type] ?? 'worker');
+      roles.add((workplace.parcelType ? DERIVED_ROLE[workplace.parcelType] : undefined) ?? 'worker');
       if (workplace.staffing.securityPosts > 0) roles.add('security');
     }
     return [...roles];

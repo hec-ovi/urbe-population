@@ -18,7 +18,7 @@ import type { AssignmentModel, JobAssignment } from '../population/assignment.js
 import type { GenderResolver } from './gender.js';
 import type { Registry } from './registry.js';
 import type { WorldModel, Workplace } from '../world/model.js';
-import type { FamilyMember, Gender, NPCInstance, NPCName, ReservedSpec, VendorQuery } from '../schemas/npc.js';
+import type { FamilyMember, Gender, Job, NPCInstance, NPCName, ReservedSpec, TransitJob, VendorQuery } from '../schemas/npc.js';
 import type { CrowdAgent } from '../schemas/crowd.js';
 
 /** Seeded probes for a free person of the agent's type and gender whose routine has them outdoors now. */
@@ -56,16 +56,17 @@ export class Instantiator {
 
   /**
    * The person behind a crowd handle: the one already bound to it at any time,
-   * else the agent alive now (determinate for a parcel handle, an alibi of the
-   * same type and gender otherwise); no agent means the trip is over.
+   * else the agent alive now (determinate for a post handle at a building or a
+   * station, an alibi of the same type and gender otherwise); no agent means
+   * the trip is over.
    */
   fromCrowd(crowdId: string, timeMin: number, agent: CrowdAgent | undefined): NPCInstance {
     const bound = this.registry.crowdBindings.get(crowdId);
     if (bound) return this.registry.instances.get(bound)!;
     if (!agent) throw new SimulationError('E_STALE_HANDLE', `crowd handle ${crowdId} names no trip at ${timeMin}`);
     const h = parseHandle(crowdId);
-    if (h?.kind === 'parcel') {
-      const wp = this.world.workplacesByParcel.get(h.id)!;
+    if (h?.kind === 'parcel' || h?.kind === 'station') {
+      const wp = (h.kind === 'parcel' ? this.world.workplacesByParcel : this.world.workplacesByStop).get(h.id)!;
       const adultIdx = this.assignment.adultOfSlot(wp.slotOffset + h.slot)!;
       const npcId = adultId(adultIdx);
       const instance = this.registry.instances.get(npcId) ?? this.buildAdult(adultIdx);
@@ -113,7 +114,7 @@ export class Instantiator {
         if (query.type && this.assignment.typeOfAdult(adultIdx).type !== query.type) continue;
         const existing = this.registry.instances.get(adultId(adultIdx));
         if (existing) {
-          if (existing.flags.dead || !existing.job) continue;
+          if (existing.flags.dead || (!existing.job && !existing.transitJob)) continue;
           return existing;
         }
         return this.buildAdult(adultIdx);
@@ -144,7 +145,7 @@ export class Instantiator {
     const { groupIdx } = this.demo.locateAdult(adultIdx);
     if (spec.homeDistrictId && this.world.groups[groupIdx]!.districtId !== spec.homeDistrictId) return false;
     const job = this.assignment.jobOfAdult(adultIdx);
-    if (spec.jobParcelId && job?.workplace.parcelId !== spec.jobParcelId) return false;
+    if (spec.jobParcelId && jobParcelId(job) !== spec.jobParcelId) return false;
     if (spec.role && job?.role !== spec.role) return false;
     return true;
   }
@@ -157,7 +158,7 @@ export class Instantiator {
     }
     if (query.type) {
       const parcelTypes = this.assignment.typeDef(query.type)?.grounding.parcelTypes;
-      if (parcelTypes) return this.world.workplaces.filter((w) => parcelTypes.includes(w.type));
+      if (parcelTypes) return this.world.workplaces.filter((w) => w.parcelType !== undefined && parcelTypes.includes(w.parcelType));
     }
     return this.world.workplaces;
   }
@@ -201,9 +202,7 @@ export class Instantiator {
       gender: this.genders.of(npcId),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
-      ...(job
-        ? { job: { parcelId: job.workplace.parcelId, role: job.role, shift: job.shift } }
-        : {}),
+      ...employmentOf(job),
       family: this.familyOf(groupIdx, h, member),
       routine: this.routines.build(npcId, type.category, home.parcelId, job),
       flags: { dead: false, custom: [] },
@@ -276,4 +275,18 @@ export class Instantiator {
   private stub(npcId: string, relation: FamilyMember['relation'], name: NPCName): FamilyMember {
     return { npcId, relation, name, instantiated: this.registry.instances.has(npcId) };
   }
+}
+
+/** The building a job sits in, or undefined at a transit post. */
+function jobParcelId(job: JobAssignment | undefined): string | undefined {
+  return job && job.workplace.place.kind === 'parcel' ? job.workplace.place.id : undefined;
+}
+
+function employmentOf(job: JobAssignment | undefined): { job?: Job; transitJob?: TransitJob } {
+  if (!job) return {};
+  const place = job.workplace.place;
+  if (place.kind === 'parcel') {
+    return { job: { parcelId: place.id, role: job.role, shift: job.shift } };
+  }
+  return { transitJob: { place, role: job.role, shift: job.shift } };
 }

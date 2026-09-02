@@ -21,7 +21,7 @@ import { dayOf, minuteOfDay } from '../core/time.js';
 import { shiftSpanAt } from '../population/jobs.js';
 import { dist2, pointAlong } from '../world/geo.js';
 import { EdgeGrid } from './edge-grid.js';
-import { parcelHandle, parseHandle, tripHandle } from './handles.js';
+import { parcelHandle, parseHandle, stationHandle, tripHandle } from './handles.js';
 import { MinuteMemo } from './minute-memo.js';
 import { TripSchedule, type Trip } from './trips.js';
 import {
@@ -187,12 +187,7 @@ export class CrowdModel {
       case 'parcel': {
         const wp = this.world.workplacesByParcel.get(id);
         if (!wp && !this.world.parcelsById.has(id)) throw new SimulationError('E_UNKNOWN_ID', `no parcel ${id}`);
-        const agents: CrowdAgent[] = [];
-        for (let local = 0; wp && local < wp.staffing.slotCount; local++) {
-          const agent = this.parcelAgent(wp, local, timeMin);
-          if (agent) agents.push(agent);
-        }
-        return this.slice(timeMin, scope, agents, maxAgents);
+        return this.slice(timeMin, scope, wp ? this.postAgents(wp, timeMin) : [], maxAgents);
       }
     }
   }
@@ -213,9 +208,9 @@ export class CrowdModel {
       const trip = this.stopTrips.at(h.slot, h.trip, timeMin, (start) => this.stopCountAt(h.id, start));
       return trip ? this.stopAgent(h.id, trip) : undefined;
     }
-    const wp = this.world.workplacesByParcel.get(h.id);
+    const wp = h.kind === 'parcel' ? this.world.workplacesByParcel.get(h.id) : this.world.workplacesByStop.get(h.id);
     if (!wp || h.slot >= wp.staffing.slotCount) return undefined;
-    return this.parcelAgent(wp, h.slot, timeMin);
+    return this.postAgent(wp, h.slot, timeMin);
   }
 
   /** Every street and stop agent inside the circle: what a player standing at [x, z] sees. */
@@ -339,8 +334,11 @@ export class CrowdModel {
     return this.stopGroupsAt(stopId, timeMin).reduce((s, g) => s + g.count, 0);
   }
 
+  /** Everyone at a stop: the people waiting, plus a station's own staff on duty. */
   private stopAgents(stopId: string, timeMin: number): CrowdAgent[] {
-    return this.stopTrips.alive(timeMin, (start) => this.stopCountAt(stopId, start)).map((trip) => this.stopAgent(stopId, trip));
+    const waiting = this.stopTrips.alive(timeMin, (start) => this.stopCountAt(stopId, start)).map((trip) => this.stopAgent(stopId, trip));
+    const station = this.world.workplacesByStop.get(stopId);
+    return station ? [...waiting, ...this.postAgents(station, timeMin)] : waiting;
   }
 
   private stopAgent(stopId: string, trip: Trip): CrowdAgent {
@@ -360,20 +358,30 @@ export class CrowdModel {
     };
   }
 
-  /** The worker filling a parcel's local slot at a time; undefined when the slot is empty or off shift. */
-  private parcelAgent(wp: Workplace, local: number, timeMin: number): CrowdAgent | undefined {
+  /** Every post of a workplace that is filled and on shift now. */
+  private postAgents(wp: Workplace, timeMin: number): CrowdAgent[] {
+    const agents: CrowdAgent[] = [];
+    for (let local = 0; local < wp.staffing.slotCount; local++) {
+      const agent = this.postAgent(wp, local, timeMin);
+      if (agent) agents.push(agent);
+    }
+    return agents;
+  }
+
+  /** The worker filling a workplace's local slot at a time; undefined when the slot is empty or off shift. */
+  private postAgent(wp: Workplace, local: number, timeMin: number): CrowdAgent | undefined {
     const globalSlot = wp.slotOffset + local;
     const adultIdx = this.assignment.adultOfSlot(globalSlot);
     if (adultIdx === undefined) return undefined;
     const shift = shiftSpanAt(this.assignment.jobOfSlot(globalSlot).shift, timeMin);
     if (!shift) return undefined;
     return {
-      crowdId: parcelHandle(wp.parcelId, local),
+      crowdId: wp.place.kind === 'parcel' ? parcelHandle(wp.place.id, local) : stationHandle(wp.place.id, local),
       trip: { startMin: shift.startMin, endMin: shift.endMin - 1 },
       type: this.assignment.typeOfAdult(adultIdx).type,
       gender: this.genders.of(adultId(adultIdx)),
       activity: 'working',
-      place: { kind: 'parcel', id: wp.parcelId },
+      place: wp.place,
       progress: 0,
       direction: 1,
     };

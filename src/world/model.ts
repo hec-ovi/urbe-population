@@ -6,19 +6,24 @@
 
 import { polygonArea, polylineLength, midpoint, pointInPolygon, dist2 } from './geo.js';
 import { AttractionField } from './attraction.js';
-import { staffWorkplace, type WorkplaceStaffing } from '../population/jobs.js';
+import { staffTransit, staffWorkplace, type WorkplaceStaffing } from '../population/jobs.js';
 import type { ResolvedParams } from '../population/defaults.js';
 import type { Group } from '../population/housing.js';
 import type { CityBlueprint, District, Parcel, Vec2, WealthTier } from '../schemas/blueprint.js';
+import type { JobPlace } from '../schemas/npc.js';
 import type { Networks } from '../schemas/networks.js';
 import type { NpcSupport } from '../schemas/interiors.js';
 
 export interface Workplace {
-  parcelId: string;
+  /** Where the work is: a building parcel, a station platform, or a route's vehicles. */
+  place: JobPlace;
   districtId: string;
-  type: Parcel['type'];
+  /** The building's use; absent at a transit post. */
+  parcelType?: Parcel['type'];
   tier: WealthTier;
   staffing: WorkplaceStaffing;
+  /** Role of each post, in post order; absent where the parcel and its interior name the posts. */
+  postRoles?: string[];
   slotOffset: number;
 }
 
@@ -47,6 +52,7 @@ export interface CrowdEdge {
   weight: number;
 }
 
+const TERMINUS_LAYOVER_MIN = 5;
 const BUS_M_PER_MIN = 333;
 const RAIL_M_PER_MIN = 666;
 
@@ -57,6 +63,8 @@ export class WorldModel {
   readonly groups: Group[];
   readonly workplaces: Workplace[] = [];
   readonly workplacesByParcel = new Map<string, Workplace>();
+  /** Station workplaces by stop id: platform and fare hall posts. */
+  readonly workplacesByStop = new Map<string, Workplace>();
   readonly totalJobSlots: number;
   readonly stops: Stop[] = [];
   readonly stopsById = new Map<string, Stop>();
@@ -79,9 +87,10 @@ export class WorldModel {
     this.interiors = new Map(Object.entries(interiors ?? {}));
     this.groups = groups;
 
-    this.totalJobSlots = this.buildWorkplaces(parcels);
+    const parcelSlots = this.buildWorkplaces(parcels);
     if (networks && networks.transit.routes.length > 0) this.buildTransitFromNetworks(networks);
     else this.buildTransitFallback(params.defaultHeadwayMin);
+    this.totalJobSlots = this.buildTransitWorkplaces(parcelSlots);
     this.buildCrowdEdges(networks);
   }
 
@@ -90,9 +99,70 @@ export class WorldModel {
     for (const p of parcels) {
       const staffing = staffWorkplace(this.seed, p, polygonArea(p.footprint), this.interiors.get(p.id));
       if (staffing.slotCount === 0) continue;
-      const wp: Workplace = { parcelId: p.id, districtId: p.districtId, type: p.type, tier: p.tier, staffing, slotOffset: offset };
+      const wp: Workplace = {
+        place: { kind: 'parcel', id: p.id },
+        districtId: p.districtId,
+        parcelType: p.type,
+        tier: p.tier,
+        staffing,
+        slotOffset: offset,
+      };
       this.workplaces.push(wp);
       this.workplacesByParcel.set(p.id, wp);
+      offset += staffing.slotCount;
+    }
+    return offset;
+  }
+
+  /**
+   * Transit posts: a station is manned for the service hours of the lines that
+   * call there, one platform post per line plus a fare hall, and a route runs
+   * as many drivers at once as its round trip and headway need. A bus stop is
+   * a pole on a pavement and carries no post.
+   */
+  private buildTransitWorkplaces(offset: number): number {
+    const railLines = new Map<string, ServiceRoute[]>();
+    for (const route of this.routes) {
+      if (route.kind === 'bus') continue;
+      for (const stopId of route.stopIds) {
+        const lines = railLines.get(stopId) ?? [];
+        if (!lines.includes(route)) lines.push(route);
+        railLines.set(stopId, lines);
+      }
+    }
+    for (const stopId of [...railLines.keys()].sort()) {
+      const lines = railLines.get(stopId)!;
+      const postRoles = [...lines.map(() => 'platform_staff'), 'fare_agent'];
+      const staffing = staffTransit(
+        postRoles.length,
+        Math.min(...lines.map((l) => l.serviceStartMin)),
+        Math.max(...lines.map((l) => l.serviceEndMin)),
+      );
+      if (staffing.slotCount === 0) continue;
+      const wp: Workplace = {
+        place: { kind: 'stop', id: stopId },
+        districtId: this.districtAt(this.stopsById.get(stopId)!.position),
+        tier: this.districtsById.get(this.districtAt(this.stopsById.get(stopId)!.position))!.tier,
+        staffing,
+        postRoles,
+        slotOffset: offset,
+      };
+      this.workplaces.push(wp);
+      this.workplacesByStop.set(stopId, wp);
+      offset += staffing.slotCount;
+    }
+    for (const route of this.routes) {
+      const staffing = staffTransit(driversOnDuty(route), route.serviceStartMin, route.serviceEndMin);
+      if (staffing.slotCount === 0) continue;
+      const first = this.stopsById.get(route.stopIds[0]!)!;
+      this.workplaces.push({
+        place: { kind: 'route', id: route.id },
+        districtId: this.districtAt(first.position),
+        tier: this.districtsById.get(this.districtAt(first.position))!.tier,
+        staffing,
+        postRoles: Array.from({ length: driversOnDuty(route) }, () => 'driver'),
+        slotOffset: offset,
+      });
       offset += staffing.slotCount;
     }
     return offset;
@@ -221,4 +291,11 @@ export class WorldModel {
     for (let i = a; i < b; i++) sum += route.legMinutes[i] ?? 1;
     return sum;
   }
+}
+
+/** Vehicles a route runs at once: its round trip, turnarounds included, over its headway. */
+function driversOnDuty(route: ServiceRoute): number {
+  const oneWay = route.legMinutes.reduce((s, m) => s + m, 0);
+  const roundTrip = 2 * (oneWay + TERMINUS_LAYOVER_MIN);
+  return Math.max(1, Math.ceil(roundTrip / route.headwayMin));
 }

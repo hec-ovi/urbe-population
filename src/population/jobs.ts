@@ -90,6 +90,34 @@ export function chosenRoleCounts(seed: string | number, parcelId: string, suppor
   });
 }
 
+/**
+ * Rota for a transit post that runs with the service: the service window is
+ * tiled by shift waves and covered every day by day crews, the way a station
+ * or a depot is manned. No security posts: a station's guards are the city's,
+ * not the platform's.
+ */
+export function staffTransit(posts: number, serviceStartMin: number, serviceEndMin: number): WorkplaceStaffing {
+  if (posts <= 0) return EMPTY;
+  const openMin = serviceStartMin % MIN_PER_DAY;
+  const closeMin = serviceEndMin % MIN_PER_DAY;
+  const spanMin = openMin === closeMin ? MIN_PER_DAY : spanOf(openMin, closeMin);
+  const waves = Math.max(1, Math.ceil(spanMin / MAX_SHIFT_MIN));
+  const crews = Math.ceil(ALL_DAYS.length / WORK_DAYS_PER_WEEK);
+  return {
+    posts,
+    securityPosts: 0,
+    waves,
+    crews,
+    slotCount: posts * waves * crews,
+    shiftLenMin: Math.ceil(spanMin / waves),
+    allDay: spanMin >= MIN_PER_DAY,
+    nightOnly: false,
+    openMin,
+    closeMin,
+    openDays: ALL_DAYS,
+  };
+}
+
 export function staffWorkplace(seed: string | number, parcel: Parcel, floorArea: number, support?: NpcSupport): WorkplaceStaffing {
   const profile = OPENING_BY_TYPE[parcel.type];
   if (!profile) return EMPTY;

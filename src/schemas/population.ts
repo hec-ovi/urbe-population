@@ -37,6 +37,8 @@ export interface TypeGap {
   categories: NPCCategory[];
   /** Parcel types where the role is staffed. */
   parcelTypes: ParcelType[];
+  /** Non-building workplaces where the role is staffed. */
+  nonParcelPlaces?: ('station' | 'route')[];
 }
 
 export interface DistrictPopulation {
