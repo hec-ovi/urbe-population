@@ -559,6 +559,20 @@ describe('vendor queries and staffing', () => {
     expect(repeat.npcId).toBe(vendor.npcId);
   });
 
+  it('type follows the parcel, job.role follows the interior, even when the two disagree', () => {
+    const generic = {
+      ...FIXTURE_INTERIORS.p_cafe!,
+      roles: [{ id: 'r_rec', role: 'receptionist' as const, floor: 0, homeAnchor: 'a_counter', count: [1, 1] as [number, number] }],
+      routines: [],
+    };
+    const sim = createSimulation({ ...makeInput(), interiors: { ...FIXTURE_INTERIORS, p_cafe: generic } });
+    const vendor = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
+    expect(vendor.type).toBe('barista');
+    expect(vendor.job!.role).toBe('receptionist');
+    expect(sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9, role: 'receptionist' }).npcId).toBe(vendor.npcId);
+    expect(code(() => sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9, role: 'barista' }))).toBe('E_NO_MATCH');
+  });
+
   it('the 24/7 police station has night coverage', () => {
     const sim = make();
     const nightShift = sim.getNPCVendor({ parcelId: 'p_police', timeMin: MON_3AM });
