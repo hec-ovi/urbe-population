@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urbe/simulation/save",
+  "title": "Simulation save",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "seed", "events"],
+  "properties": {
+    "version": { "const": "1" },
+    "seed": { "type": "string" },
+    "events": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/crowd" },
+          { "$ref": "#/$defs/vendor" },
+          { "$ref": "#/$defs/npc" },
+          { "$ref": "#/$defs/reserve" },
+          { "$ref": "#/$defs/flag" },
+          { "$ref": "#/$defs/interrupt" },
+          { "$ref": "#/$defs/resume" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "time": { "type": "number", "minimum": 0 },
+    "name": { "type": "object", "additionalProperties": false, "required": ["given", "family"], "properties": { "given": { "type": "string" }, "family": { "type": "string" } } },
+    "crowd": { "type": "object", "additionalProperties": false, "required": ["k", "crowdId", "timeMin"], "properties": { "k": { "const": "crowd" }, "crowdId": { "type": "string" }, "timeMin": { "$ref": "#/$defs/time" } } },
+    "vendor": { "type": "object", "additionalProperties": false, "required": ["k", "query"], "properties": { "k": { "const": "vendor" }, "query": { "type": "object", "additionalProperties": false, "required": ["timeMin"], "properties": { "parcelId": { "type": "string" }, "type": { "type": "string" }, "role": { "type": "string" }, "timeMin": { "$ref": "#/$defs/time" } } } } },
+    "npc": { "type": "object", "additionalProperties": false, "required": ["k", "npcId"], "properties": { "k": { "const": "npc" }, "npcId": { "type": "string" } } },
+    "reserve": { "type": "object", "additionalProperties": false, "required": ["k", "spec"], "properties": { "k": { "const": "reserve" }, "spec": { "type": "object", "additionalProperties": false, "required": ["name", "type"], "properties": { "name": { "$ref": "#/$defs/name" }, "gender": { "enum": ["male", "female"] }, "type": { "type": "string" }, "homeDistrictId": { "type": "string" }, "jobParcelId": { "type": "string" }, "role": { "type": "string" } } } } },
+    "flag": { "type": "object", "additionalProperties": false, "required": ["k", "npcId", "op"], "properties": { "k": { "const": "flag" }, "npcId": { "type": "string" }, "op": { "oneOf": [ { "type": "object", "additionalProperties": false, "required": ["kind"], "properties": { "kind": { "const": "resign" } } }, { "type": "object", "additionalProperties": false, "required": ["kind"], "properties": { "kind": { "const": "promote" }, "toParcelId": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["kind"], "properties": { "kind": { "const": "die" } } }, { "type": "object", "additionalProperties": false, "required": ["kind", "tag"], "properties": { "kind": { "const": "custom" }, "tag": { "type": "string" } } } ] } } },
+    "interrupt": { "type": "object", "additionalProperties": false, "required": ["k", "npcId", "timeMin"], "properties": { "k": { "const": "interrupt" }, "npcId": { "type": "string" }, "timeMin": { "$ref": "#/$defs/time" } } },
+    "resume": { "type": "object", "additionalProperties": false, "required": ["k", "npcId", "timeMin"], "properties": { "k": { "const": "resume" }, "npcId": { "type": "string" }, "timeMin": { "$ref": "#/$defs/time" } } }
+  }
+}

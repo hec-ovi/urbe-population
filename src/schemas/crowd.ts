@@ -53,6 +53,8 @@ export interface CrowdAgent {
   type: string;
   /** The gender the crowdId resolves to on instantiation. */
   gender: Gender;
+  /** Stable body seed retained if this handle becomes a named NPC. */
+  appearanceSeed: number;
   activity: Activity;
   place: PlaceRef;
   /** 0..1 along the edge path when place is an edge: runs 0 to 1 over the trip for direction 1, 1 to 0 for direction -1. */

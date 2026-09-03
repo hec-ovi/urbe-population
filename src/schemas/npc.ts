@@ -5,6 +5,7 @@
 
 import type { Activity, PlaceRef } from './crowd.js';
 import type { InteriorAnimation } from './interiors.js';
+import type { Vec3 } from './networks.js';
 
 export interface NPCName {
   given: string;
@@ -18,6 +19,8 @@ export interface NPCInstance {
   npcId: string;
   name: NPCName;
   gender: Gender;
+  /** Stable seed for body shape, hair, skin and clothing. */
+  appearanceSeed: number;
   type: string;
   home: { parcelId: string; unit: number };
   /** Building employment. Kept stable for existing consumers. */
@@ -72,8 +75,25 @@ export interface RoutineEntry {
   endMin: number;
   activity: Activity;
   place: PlaceRef;
+  /** Present for a walk between two scheduled places. */
+  walk?: ScheduledWalk;
   /** Present when the entry is a transit ride. */
   transitLeg?: TransitLeg;
+}
+
+export interface ScheduledWalk {
+  from: PlaceRef;
+  to: PlaceRef;
+  edges: WalkPathEdge[];
+  totalDistanceM: number;
+}
+
+export interface WalkPathEdge {
+  edgeId: string;
+  direction: 1 | -1;
+  /** Exact Connections path3 in travel order. */
+  path3: Vec3[];
+  distanceM: number;
 }
 
 export interface TransitLeg {
@@ -101,6 +121,39 @@ export interface BehaviorState {
   /** Present in interior mode: current routine step or walk intent between anchors. */
   interior?: InteriorBehavior;
   interrupted: boolean;
+}
+
+/** Exact point on Connections' walk graph, suitable for interruption resume. */
+export interface WalkPosition {
+  edgeId: string;
+  /** 0..1 from the edge's authored from node to its to node. */
+  progress: number;
+  direction: 1 | -1;
+}
+
+export type NPCAnimationState = 'walk' | 'run' | 'idle' | 'sit' | 'crouch';
+
+/** Public projection used to materialize the same instanced NPC at any distance. */
+export interface NPCContinuityState {
+  npcId: string;
+  timeMin: number;
+  behavior: BehaviorState;
+  schedule: {
+    entryIndex: number;
+    startMin: number;
+    endMin: number;
+    progress: number;
+    nextDestination: PlaceRef;
+  };
+  movement?: {
+    from: PlaceRef;
+    to: PlaceRef;
+    path: WalkPathEdge[];
+    totalDistanceM: number;
+    distanceM: number;
+    current: WalkPosition;
+  };
+  animation: NPCAnimationState;
 }
 
 export type InteriorBehavior =

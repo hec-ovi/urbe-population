@@ -10,7 +10,14 @@ import { dayOf, minuteOfDay } from '../core/time.js';
 import { SimulationError } from '../schemas/errors.js';
 import type { Registry } from '../instancing/registry.js';
 import type { WorldModel } from '../world/model.js';
-import type { BehaviorState, NPCInstance, RoutineEntry } from '../schemas/npc.js';
+import type {
+  BehaviorState,
+  NPCAnimationState,
+  NPCContinuityState,
+  NPCInstance,
+  RoutineEntry,
+  WalkPathEdge,
+} from '../schemas/npc.js';
 import type { NpcSupport } from '../schemas/interiors.js';
 
 export class BehaviorModel {
@@ -21,12 +28,63 @@ export class BehaviorModel {
   ) {}
 
   behaviorAt(npcId: string, timeMin: number): BehaviorState {
+    const inst = this.live(npcId, timeMin);
+    const interruptedAt = this.registry.interrupted.get(npcId);
+    return this.project(inst, interruptedAt ?? timeMin, interruptedAt !== undefined);
+  }
+
+  continuityAt(npcId: string, timeMin: number): NPCContinuityState {
+    const inst = this.live(npcId, timeMin);
+    const interruptedAt = this.registry.interrupted.get(npcId);
+    const effectiveTime = interruptedAt ?? timeMin;
+    const { entry, index } = entryAt(inst.routine, effectiveTime);
+    const behavior = this.project(inst, effectiveTime, interruptedAt !== undefined);
+    const bounds = entryBounds(entry, effectiveTime);
+    const progress = Math.max(0, Math.min(1, (effectiveTime - bounds.startMin) / Math.max(1, bounds.endMin - bounds.startMin)));
+    const nextDestination = destinationAfter(inst.routine, index, entry.place);
+    const state: NPCContinuityState = {
+      npcId,
+      timeMin,
+      behavior,
+      schedule: { entryIndex: index, ...bounds, progress, nextDestination },
+      animation: animationFor(behavior),
+    };
+    if (entry.walk) {
+      if (entry.walk.edges.length === 0) {
+        throw new SimulationError('E_NO_MATCH', `NPC ${npcId} has no authoritative walk path for its scheduled commute`);
+      }
+      const distanceM = progress * entry.walk.totalDistanceM;
+      state.movement = {
+        from: entry.walk.from,
+        to: entry.walk.to,
+        path: entry.walk.edges,
+        totalDistanceM: entry.walk.totalDistanceM,
+        distanceM,
+        current: positionAlong(entry.walk.edges, distanceM),
+      };
+    } else if (entry.activity === 'commuting' && !entry.transitLeg && entry.place.kind !== 'route') {
+      throw new SimulationError('E_NO_MATCH', `NPC ${npcId} has no authoritative walk path for its scheduled commute`);
+    }
+    return state;
+  }
+
+  private live(npcId: string, timeMin: number): NPCInstance {
     const inst = this.registry.instances.get(npcId);
     if (!inst) throw new SimulationError('E_UNKNOWN_ID', `NPC ${npcId} is not instanced`);
     if (inst.flags.dead) throw new SimulationError('E_DEAD', `NPC ${npcId} is dead`);
     if (!Number.isFinite(timeMin) || timeMin < 0) throw new SimulationError('E_TIME', `invalid time ${timeMin}`);
+    return inst;
+  }
+
+  private project(inst: NPCInstance, timeMin: number, interrupted: boolean): BehaviorState {
     const entry = findEntry(inst.routine, timeMin) ?? inst.routine[0]!;
-    const interrupted = this.registry.interrupted.has(npcId);
+
+    if (entry.walk?.edges.length) {
+      const bounds = entryBounds(entry, timeMin);
+      const progress = Math.max(0, Math.min(1, (timeMin - bounds.startMin) / Math.max(1, bounds.endMin - bounds.startMin)));
+      const current = positionAlong(entry.walk.edges, progress * entry.walk.totalDistanceM);
+      return { mode: 'street', activity: entry.activity, place: { kind: 'edge', id: current.edgeId }, interrupted };
+    }
 
     if (entry.activity === 'sleeping' || (entry.activity === 'home' && entry.place.kind === 'parcel')) {
       return { mode: 'home', activity: entry.activity, place: entry.place, interrupted };
@@ -110,6 +168,61 @@ export class BehaviorModel {
     }
     return { at: { anchorId: step.anchor, animation: step.animation, untilMin: timeMin + (dwell(stepIdx, cycle) - within) } };
   }
+}
+
+function entryAt(routine: RoutineEntry[], timeMin: number): { entry: RoutineEntry; index: number } {
+  const entry = findEntry(routine, timeMin) ?? routine[0]!;
+  return { entry, index: routine.indexOf(entry) };
+}
+
+function entryBounds(entry: RoutineEntry, timeMin: number): { startMin: number; endMin: number } {
+  const week = Math.floor(timeMin / (7 * 1440));
+  const day = dayOf(timeMin);
+  return {
+    startMin: week * 7 * 1440 + day * 1440 + entry.startMin,
+    endMin: week * 7 * 1440 + day * 1440 + entry.endMin,
+  };
+}
+
+function nextEntry(routine: RoutineEntry[], index: number): RoutineEntry {
+  return routine[(index + 1) % routine.length]!;
+}
+
+function destinationAfter(routine: RoutineEntry[], index: number, here: RoutineEntry['place']): RoutineEntry['place'] {
+  const immediate = routine[index]!.walk?.to;
+  if (immediate) return immediate;
+  for (let offset = 1; offset <= routine.length; offset++) {
+    const candidate = nextEntry(routine, index + offset - 1);
+    const destination = candidate.walk?.to ?? candidate.place;
+    if (destination.kind !== here.kind || destination.id !== here.id) return destination;
+  }
+  return here;
+}
+
+function positionAlong(edges: WalkPathEdge[], distanceM: number): { edgeId: string; progress: number; direction: 1 | -1 } {
+  let remaining = distanceM;
+  for (const edge of edges) {
+    if (remaining <= edge.distanceM || edge === edges.at(-1)) {
+      const travelProgress = Math.max(0, Math.min(1, remaining / Math.max(edge.distanceM, 1e-9)));
+      return {
+        edgeId: edge.edgeId,
+        progress: edge.direction === 1 ? travelProgress : 1 - travelProgress,
+        direction: edge.direction,
+      };
+    }
+    remaining -= edge.distanceM;
+  }
+  const last = edges.at(-1)!;
+  return { edgeId: last.edgeId, progress: last.direction === 1 ? 1 : 0, direction: last.direction };
+}
+
+function animationFor(behavior: BehaviorState): NPCAnimationState {
+  if (behavior.interrupted) return 'idle';
+  if (behavior.activity === 'commuting') return 'walk';
+  const interior = behavior.interior;
+  if (interior && 'walk' in interior) return 'walk';
+  if (interior && 'at' in interior && interior.at.animation === 'idle_sit') return 'sit';
+  return 'idle';
 }
 
 export function findEntry(routine: RoutineEntry[], timeMin: number): RoutineEntry | undefined {

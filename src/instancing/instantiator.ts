@@ -69,19 +69,19 @@ export class Instantiator {
       const wp = (h.kind === 'parcel' ? this.world.workplacesByParcel : this.world.workplacesByStop).get(h.id)!;
       const adultIdx = this.assignment.adultOfSlot(wp.slotOffset + h.slot)!;
       const npcId = adultId(adultIdx);
-      const instance = this.registry.instances.get(npcId) ?? this.buildAdult(adultIdx);
+      const instance = this.registry.instances.get(npcId) ?? this.buildAdult(adultIdx, undefined, agent.appearanceSeed);
       this.registry.crowdBindings.set(crowdId, npcId);
       return instance;
     }
     for (let k = 0; k < ALIBI_PROBES; k++) {
       const adultIdx = rand(this.seed, 'alibi', crowdId, k).int(this.demo.totalAdults);
-      if (this.freeMatch(adultIdx, agent) && this.plausiblyOutdoors(adultIdx, timeMin)) return this.bind(crowdId, adultIdx);
+      if (this.freeMatch(adultIdx, agent) && this.plausiblyOutdoors(adultIdx, timeMin)) return this.bind(crowdId, adultIdx, agent.appearanceSeed);
     }
     // A seeded walk reaches every free person of the type and gender, so a rare type is found, not gambled on.
     const start = rand(this.seed, 'alibi-walk', crowdId).int(this.demo.totalAdults);
     for (let k = 0; k < this.demo.totalAdults; k++) {
       const adultIdx = (start + k) % this.demo.totalAdults;
-      if (this.freeMatch(adultIdx, agent)) return this.bind(crowdId, adultIdx);
+      if (this.freeMatch(adultIdx, agent)) return this.bind(crowdId, adultIdx, agent.appearanceSeed);
     }
     throw new SimulationError('E_NO_MATCH', `no free NPC matches crowd agent ${crowdId}`);
   }
@@ -94,8 +94,8 @@ export class Instantiator {
     );
   }
 
-  private bind(crowdId: string, adultIdx: number): NPCInstance {
-    const instance = this.buildAdult(adultIdx);
+  private bind(crowdId: string, adultIdx: number, appearanceSeed: number): NPCInstance {
+    const instance = this.buildAdult(adultIdx, undefined, appearanceSeed);
     this.registry.crowdBindings.set(crowdId, instance.npcId);
     return instance;
   }
@@ -190,7 +190,7 @@ export class Instantiator {
     return this.routines.build(adultId(adultIdx), type.category, home.parcelId, job);
   }
 
-  private buildAdult(adultIdx: number, nameOverride?: NPCName): NPCInstance {
+  private buildAdult(adultIdx: number, nameOverride?: NPCName, appearanceSeed?: number): NPCInstance {
     const npcId = adultId(adultIdx);
     const { groupIdx, h, member } = this.demo.locateAdult(adultIdx);
     const home = this.assignment.homeOf(groupIdx, h);
@@ -200,6 +200,7 @@ export class Instantiator {
       npcId,
       name: nameOverride ?? this.memberName(groupIdx, h, npcId),
       gender: this.genders.of(npcId),
+      appearanceSeed: appearanceSeed ?? rand(this.seed, 'appearance', npcId).int(4294967296),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
       ...employmentOf(job),
@@ -237,6 +238,7 @@ export class Instantiator {
       npcId,
       name: this.memberName(groupIdx, h, npcId),
       gender: this.genders.of(npcId),
+      appearanceSeed: rand(this.seed, 'appearance', npcId).int(4294967296),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
       family,

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { createSimulation, restoreSimulation, DEFAULT_TYPE_SET, SimulationError } from './index.js';
 import { FIXTURE_BLUEPRINT, FIXTURE_INTERIORS } from './fixtures/small-city.js';
 import { FIXTURE_THEMED_TYPES } from './fixtures/themed-types.js';
-import type { CitySimulation, CrowdScope, NPCInstance, SimulationInput, SimulationParams } from './index.js';
+import type { CitySimulation, CrowdScope, Networks, NPCInstance, SimulationInput, SimulationParams } from './index.js';
 
 const SEED = 'urbe-test-1';
 const MON_9 = 9 * 60;
@@ -22,6 +22,48 @@ function makeInput(params?: SimulationParams): SimulationInput {
 
 function make(): CitySimulation {
   return createSimulation(makeInput());
+}
+
+function routedInput(): SimulationInput {
+  const hub = { id: 'hub', x: 500, y: 3, z: 250, kind: 'corner' as const };
+  const nodes: Networks['walk']['nodes'] = [hub];
+  const edges: Networks['walk']['edges'] = [];
+  for (const parcel of FIXTURE_BLUEPRINT.parcels) {
+    const id = `entry-${parcel.id}`;
+    const [x, z] = parcel.access.point;
+    nodes.push({ id, x, y: 1, z, kind: 'entry', ref: parcel.id });
+    edges.push({
+      id: `walk-${parcel.id}`, from: id, to: hub.id, kind: 'access', width: 2,
+      path: [[x, z], [hub.x, hub.z]],
+      path3: [[x, 1, z], [(x + hub.x) / 2, 7, (z + hub.z) / 2], [hub.x, hub.y, hub.z]],
+    });
+  }
+  for (const stop of [
+    ...FIXTURE_BLUEPRINT.transit.busStops,
+    ...FIXTURE_BLUEPRINT.transit.trainStations,
+    ...FIXTURE_BLUEPRINT.transit.subwayStations,
+  ]) {
+    const id = `stop-${stop.id}`;
+    const [x, z] = stop.position;
+    nodes.push({ id, x, y: 0, z, kind: 'stop', ref: stop.id });
+    edges.push({
+      id: `walk-stop-${stop.id}`, from: hub.id, to: id, kind: 'sidewalk', width: 2,
+      path: [[hub.x, hub.z], [x, z]], path3: [[hub.x, hub.y, hub.z], [x, 0, z]],
+    });
+  }
+  const networks: Networks = {
+    walk: { nodes, edges },
+    transit: { routes: [{
+      id: 'unused-route', kind: 'bus', lineId: 'unused',
+      stops: [
+        { stopId: 'unused-a', x: 5000, y: 0, z: 5000, shapeDist: 0 },
+        { stopId: 'unused-b', x: 5000, y: 0, z: 5000, shapeDist: 1 },
+      ],
+      template: [{ arrive: 0, depart: 0 }, { arrive: 60, depart: 60 }],
+      service: [{ start: 0, end: 86400, headway: 600, phase: 0 }],
+    }] },
+  };
+  return { ...makeInput(), networks };
 }
 
 function code(fn: () => unknown): string | undefined {
@@ -155,6 +197,7 @@ describe('crowd layer', () => {
     expect(parcel.agents.length).toBeGreaterThan(0);
     const worker = sim.instantiate({ crowdId: parcel.agents[0]!.crowdId, timeMin: MON_9 });
     expect(worker.job!.parcelId).toBe('p_cafe');
+    expect(worker.appearanceSeed).toBe(parcel.agents[0]!.appearanceSeed);
     const again = sim.instantiate({ crowdId: parcel.agents[0]!.crowdId, timeMin: MON_9 });
     expect(again.npcId).toBe(worker.npcId);
   });
@@ -417,6 +460,18 @@ describe('gender', () => {
     expect(seen).toEqual(new Set(['male', 'female']));
   });
 
+  it('keeps a previously seen body seed when that person later appears at work', () => {
+    const sim = make();
+    const street = sim.crowd(MON_NOON, { kind: 'city' }, { maxAgents: 24 }).agents;
+    const worker = street.map((agent) => sim.instantiate({ crowdId: agent.crowdId, timeMin: MON_NOON })).find((npc) => npc.job);
+    expect(worker).toBeDefined();
+    const shift = worker!.job!.shift;
+    const atWork = shift.days[0]! * 1440 + shift.startMin;
+    const post = sim.crowd(atWork, { kind: 'parcel', id: worker!.job!.parcelId }, { maxAgents: 128 }).agents
+      .find((agent) => sim.instantiate({ crowdId: agent.crowdId, timeMin: atWork }).npcId === worker!.npcId);
+    expect(post?.appearanceSeed).toBe(worker!.appearanceSeed);
+  });
+
   it('params.femaleShare steers the mix', () => {
     const sim = createSimulation({ ...makeInput(), params: { femaleShare: 1 } });
     expect(sample(sim, 10).every((n) => n.gender === 'female')).toBe(true);
@@ -643,6 +698,15 @@ describe('vendor queries and staffing', () => {
     expect(sim.getNPCVendor({ parcelId: 'p_shop', timeMin: MON_NOON }).job!.role).toBe('vendor');
   });
 
+  it('does not turn a harbour crane operator into a restaurant waiter', () => {
+    const sim = createSimulation({ ...makeInput(), npcTypes: FIXTURE_THEMED_TYPES });
+    const waiter = sim.getNPCVendor({ parcelId: 'p_rest', role: 'waiter', timeMin: MON_NOON });
+    const type = FIXTURE_THEMED_TYPES.types.find((candidate) => candidate.type === waiter.type)!;
+    expect(waiter.job?.role).toBe('waiter');
+    expect(type.category).toBe('vendor');
+    expect(waiter.type).not.toBe('harbour_crane_operator');
+  });
+
   it('reports uncovered transit posts without changing the parcel gap shape', () => {
     const holed = {
       ...FIXTURE_THEMED_TYPES,
@@ -772,6 +836,83 @@ describe('behavior state machine', () => {
       const state = sim.behaviorAt(vendor.npcId, MON_3AM);
       expect(state.mode).toBe('home');
     }
+  });
+});
+
+describe('named NPC continuity', () => {
+  it('projects one worker from home over path3 to work and onto the next route', () => {
+    const sim = createSimulation(routedInput());
+    const person = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
+    const monday = person.routine.filter((entry) => entry.days.includes(0));
+    const outbound = monday.find((entry) => entry.walk?.to.kind === 'parcel' && entry.walk.to.id === 'p_cafe')!;
+    const work = monday.find((entry) => entry.activity === 'working' && entry.place.kind === 'parcel' && entry.place.id === 'p_cafe')!;
+    const inbound = monday.find((entry) => entry.walk?.from.kind === 'parcel' && entry.walk.from.id === 'p_cafe')!;
+
+    const home = sim.continuityAt(person.npcId, outbound.startMin - 1);
+    expect(home.behavior).toMatchObject({ mode: 'home', place: { kind: 'parcel', id: person.home.parcelId } });
+    expect(home.schedule.nextDestination).toEqual({ kind: 'parcel', id: 'p_cafe' });
+
+    const leaving = sim.continuityAt(person.npcId, outbound.startMin);
+    expect(leaving.movement?.from).toEqual({ kind: 'parcel', id: person.home.parcelId });
+    expect(leaving.movement?.to).toEqual({ kind: 'parcel', id: 'p_cafe' });
+    expect(leaving.movement?.path.flatMap((edge) => edge.path3).some((point) => point[1] === 7)).toBe(true);
+    expect(leaving.animation).toBe('walk');
+
+    const atWork = sim.continuityAt(person.npcId, work.startMin + 1);
+    expect(atWork.behavior).toMatchObject({ mode: 'interior', activity: 'working', place: { kind: 'parcel', id: 'p_cafe' } });
+    expect(atWork.schedule.nextDestination).toEqual({ kind: 'parcel', id: person.home.parcelId });
+
+    const goingHome = sim.continuityAt(person.npcId, inbound.startMin);
+    expect(goingHome.movement?.from).toEqual({ kind: 'parcel', id: 'p_cafe' });
+    expect(goingHome.movement?.to).toEqual({ kind: 'parcel', id: person.home.parcelId });
+    expect(sim.continuityAt(person.npcId, inbound.endMin).behavior.mode).toBe('home');
+  });
+
+  it('restores identity, body traits, schedule progress, destination and interruption exactly', () => {
+    const input = routedInput();
+    const sim = createSimulation(input);
+    const person = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
+    const commute = person.routine.find((entry) => entry.days.includes(0) && entry.walk?.to.kind === 'parcel' && entry.walk.to.id === 'p_cafe')!;
+    const time = commute.startMin + 0.5;
+    const before = sim.continuityAt(person.npcId, time);
+    sim.interrupt(person.npcId, time);
+    const frozen = sim.continuityAt(person.npcId, time + 20);
+    const restored = restoreSimulation(input, sim.serialize());
+
+    expect(restored.getNPC(person.npcId)).toEqual(person);
+    expect(restored.getNPC(person.npcId).appearanceSeed).toBe(person.appearanceSeed);
+    expect(restored.continuityAt(person.npcId, time + 20)).toEqual(frozen);
+    expect(frozen.movement?.current).toEqual(before.movement?.current);
+    expect(frozen.schedule.nextDestination).toEqual(before.schedule.nextDestination);
+    restored.resume(person.npcId, time + 20);
+    expect(restored.continuityAt(person.npcId, time + 20).behavior.interrupted).toBe(false);
+  });
+
+  it('rejects malformed serialized continuity state with a closed input error', () => {
+    const input = routedInput();
+    expect(code(() => restoreSimulation(input, { version: '1', seed: String(input.seed), events: [{ k: 'resume', npcId: 'x', timeMin: 0, extra: true }] } as never))).toBe('E_INVALID_INPUT');
+    expect(code(() => restoreSimulation(input, { version: '1', seed: String(input.seed), events: [{ k: 'unknown' }] } as never))).toBe('E_INVALID_INPUT');
+  });
+
+  it('selects seated animation only from a seated schedule request and rejects unavailable people', () => {
+    const seated = {
+      ...FIXTURE_INTERIORS.p_cafe!,
+      routines: [{ role: 'r_barista', steps: [{ anchor: 'a_seat', minutes: [999, 999] as [number, number], animation: 'idle_sit' as const }] }],
+    };
+    const sim = createSimulation({ ...routedInput(), interiors: { ...FIXTURE_INTERIORS, p_cafe: seated } });
+    const person = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
+    const work = person.routine.find((entry) => entry.days.includes(0) && entry.activity === 'working')!;
+    expect(sim.continuityAt(person.npcId, work.startMin + 2).animation).toBe('sit');
+    expect(person.routine.every((entry) => sim.continuityAt(person.npcId, entry.days[0]! * 1440 + entry.startMin + 0.01).animation !== 'crouch')).toBe(true);
+    sim.applyFlag(person.npcId, { kind: 'die' });
+    expect(code(() => sim.continuityAt(person.npcId, MON_9))).toBe('E_DEAD');
+  });
+
+  it('fails closed when a scheduled walk has no authoritative route', () => {
+    const sim = make();
+    const person = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: MON_9 });
+    const commute = person.routine.find((entry) => entry.days.includes(0) && entry.activity === 'commuting' && !entry.transitLeg)!;
+    expect(code(() => sim.continuityAt(person.npcId, commute.startMin))).toBe('E_NO_MATCH');
   });
 });
 

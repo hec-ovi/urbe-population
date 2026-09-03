@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urbe/simulation/npc-continuity",
+  "title": "NPC continuity state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["npcId", "timeMin", "behavior", "schedule", "animation"],
+  "properties": {
+    "npcId": { "type": "string", "minLength": 1 },
+    "timeMin": { "type": "number", "minimum": 0 },
+    "behavior": { "$ref": "#/$defs/behavior" },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryIndex", "startMin", "endMin", "progress", "nextDestination"],
+      "properties": {
+        "entryIndex": { "type": "integer", "minimum": 0 },
+        "startMin": { "type": "number", "minimum": 0 },
+        "endMin": { "type": "number", "exclusiveMinimum": 0 },
+        "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+        "nextDestination": { "$ref": "#/$defs/place" }
+      }
+    },
+    "movement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "path", "totalDistanceM", "distanceM", "current"],
+      "properties": {
+        "from": { "$ref": "#/$defs/place" },
+        "to": { "$ref": "#/$defs/place" },
+        "path": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/walkEdge" } },
+        "totalDistanceM": { "type": "number", "exclusiveMinimum": 0 },
+        "distanceM": { "type": "number", "minimum": 0 },
+        "current": { "$ref": "#/$defs/walkPosition" }
+      }
+    },
+    "animation": { "enum": ["walk", "run", "idle", "sit", "crouch"] }
+  },
+  "$defs": {
+    "place": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["kind", "id"], "properties": { "kind": { "const": "edge" }, "id": { "type": "string" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "id"], "properties": { "kind": { "const": "stop" }, "id": { "type": "string" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "id"], "properties": { "kind": { "const": "parcel" }, "id": { "type": "string" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "id"], "properties": { "kind": { "const": "route" }, "id": { "type": "string" } } }
+      ]
+    },
+    "vec3": {
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number" }],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "walkEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edgeId", "direction", "path3", "distanceM"],
+      "properties": {
+        "edgeId": { "type": "string" },
+        "direction": { "enum": [-1, 1] },
+        "path3": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/vec3" } },
+        "distanceM": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "walkPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edgeId", "progress", "direction"],
+      "properties": {
+        "edgeId": { "type": "string" },
+        "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+        "direction": { "enum": [-1, 1] }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "activity", "place", "interrupted"],
+      "properties": {
+        "mode": { "enum": ["interior", "street", "transit", "home"] },
+        "activity": { "enum": ["sleeping", "home", "working", "commuting", "shopping", "leisure", "transit_wait"] },
+        "place": { "$ref": "#/$defs/place" },
+        "interrupted": { "type": "boolean" },
+        "interior": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["at"],
+              "properties": {
+                "at": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["anchorId", "animation", "untilMin"],
+                  "properties": {
+                    "anchorId": { "type": "string" },
+                    "animation": { "enum": ["idle_stand", "idle_sit", "idle_lean", "work_type", "work_serve", "work_cook", "sweep", "patrol_stand", "exercise", "sleep", "use_toilet"] },
+                    "untilMin": { "type": "number" }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["walk"],
+              "properties": {
+                "walk": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["fromAnchorId", "toAnchorId"],
+                  "properties": { "fromAnchorId": { "type": "string" }, "toAnchorId": { "type": "string" } }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,8 @@
 
 import type { Vec2 } from './blueprint.js';
 
+export type Vec3 = [x: number, y: number, z: number];
+
 export interface Networks {
   walk: WalkNet;
   transit: { routes: TransitRoute[] };
@@ -21,8 +23,19 @@ export interface WalkNet {
 export interface WalkNode {
   id: string;
   x: number;
+  y: number;
   z: number;
-  kind: 'sidewalk' | 'corner' | 'crossing-end' | 'stop' | 'station' | 'entry' | 'link-portal';
+  kind:
+    | 'sidewalk'
+    | 'corner'
+    | 'crossing-end'
+    | 'stop'
+    | 'station'
+    | 'station-entrance'
+    | 'station-access'
+    | 'station-handoff'
+    | 'entry'
+    | 'link-portal';
   /** Stop, station, parcel or link id this node serves, by kind. */
   ref?: string;
 }
@@ -31,9 +44,12 @@ export interface WalkEdge {
   id: string;
   from: string;
   to: string;
-  kind: 'sidewalk' | 'crossing' | 'access' | 'link';
+  kind: 'sidewalk' | 'crossing' | 'access' | 'stairs' | 'passage' | 'platform' | 'link';
   width: number;
+  /** Compatibility projection only. Movement always uses path3. */
   path: Vec2[];
+  /** Connections' authoritative walking surface. */
+  path3: Vec3[];
 }
 
 export interface TransitRoute {

@@ -20,7 +20,7 @@ import { createSimulation, FIXTURE_BLUEPRINT, FIXTURE_INTERIORS } from '@urbe/si
 
 const sim = createSimulation({ seed: 42, blueprint: FIXTURE_BLUEPRINT, interiors: FIXTURE_INTERIORS });
 const barista = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: 9 * 60 });
-const state = sim.behaviorAt(barista.npcId, 9 * 60 + 30);
+const state = sim.continuityAt(barista.npcId, 9 * 60 + 30);
 ```
 
 A seed plus a city blueprint (districts, parcels with type and tier, transit). Optional inputs sharpen it: movement networks with timetables, per-building NPC support files (roles with min and max counts, routine anchors), a themed NPC type set, a name pool, and statistical overrides. Every optional input has a built-in fallback, so it runs on the bundled fixtures with nothing else present.
@@ -32,7 +32,8 @@ Time is integer minutes since a Monday midnight epoch; routines repeat weekly.
 - **`populationStats()`**: residents, households, employment and NPC type counts per district and tier. Residents match the blueprint's own population figure within 3 percent, and the factor applied to the housing stock to get there is published alongside, with any staffed role the typed set cannot cover.
 - **`crowd(time, scope)`**: typed counts for a city, district, street edge, transit stop or parcel, plus a deterministic capped sample of agents; a radius scope (centre and metres) returns every person on the streets and stops inside it, uncapped, for the engine to render exactly what the player sees. Every agent id names one trip (a traversal of a street, a wait at a stop, a shift at a building or station), comes back on every poll during it with the span stated on the agent (`startMin` and `endMin` are both minutes the person is there), and instantiates that exact person at any minute of it. How many people are outdoors at a given hour follows real time-use statistics, and `params.streetDensity` scales it for a busier or quieter city.
 - **`instantiate(handle)` / `getNPCVendor(query)` / `findNPCs(query)`**: a full NPC life, conditioned on everyone already instantiated. Home unit, building job or transit post with shift, family, name, gender, transit line, and a gapless weekly routine.
-- **`behaviorAt(npcId, time)`**: where that person is and what they are doing right now, as an interior anchor step, a walk intent, a street edge, a transit leg or home.
+- **`continuityAt(npcId, time)`**: that person's current schedule entry, progress, next destination and animation. A commute includes the ordered Connections edges and their authoritative 3D paths.
+- **`behaviorAt(npcId, time)`**: the smaller compatibility view of the same state: interior anchor, street edge, transit leg or home.
 - **`interrupt` / `resume`**: player interaction pauses a routine and puts it back.
 - **`applyFlag`**: resign, promote (which reassigns the job and moves the home when the tier changes), die, or custom tags. Dead NPCs stop matching vendor and quest queries.
 - **`reserveNPC(spec)`**: a story-critical NPC with a fixed name and type, taking a real statistical slot.

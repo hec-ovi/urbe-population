@@ -11,7 +11,7 @@ import { MIN_PER_DAY, MIN_PER_WEEK } from '../core/time.js';
 import type { WorldModel, ServiceRoute } from '../world/model.js';
 import type { JobAssignment } from '../population/assignment.js';
 import type { NPCCategory } from '../schemas/npc-types.js';
-import type { RoutineEntry, TransitLeg } from '../schemas/npc.js';
+import type { RoutineEntry, ScheduledWalk, TransitLeg } from '../schemas/npc.js';
 import type { Vec2 } from '../schemas/blueprint.js';
 import type { Activity, PlaceRef } from '../schemas/crowd.js';
 
@@ -26,6 +26,7 @@ interface Segment {
   activity: Activity;
   place: PlaceRef;
   transitLeg?: TransitLeg;
+  walk?: ScheduledWalk;
 }
 
 const WALK_M_PER_MIN = 80;
@@ -73,7 +74,11 @@ export class RoutineBuilder {
     const leaveHome = cursor;
     out.push({ startW: wrapW(leaveHome - 45), activity: 'home', place: homePlace });
     for (const leg of legs) {
-      out.push({ startW: wrapW(cursor), activity: leg.activity, place: leg.place, ...(leg.transitLeg ? { transitLeg: leg.transitLeg } : {}) });
+      out.push({
+        startW: wrapW(cursor), activity: leg.activity, place: leg.place,
+        ...(leg.transitLeg ? { transitLeg: leg.transitLeg } : {}),
+        ...(leg.walk ? { walk: leg.walk } : {}),
+      });
       cursor += leg.minutes;
     }
     out.push({ startW: wrapW(startW), activity: 'working', place: workPlace });
@@ -81,7 +86,11 @@ export class RoutineBuilder {
     const back = this.commuteLegs(work, home, (job.shift.endMin + 5) % MIN_PER_DAY);
     let backCursor = endW;
     for (const leg of back) {
-      out.push({ startW: wrapW(backCursor), activity: leg.activity, place: leg.place, ...(leg.transitLeg ? { transitLeg: leg.transitLeg } : {}) });
+      out.push({
+        startW: wrapW(backCursor), activity: leg.activity, place: leg.place,
+        ...(leg.transitLeg ? { transitLeg: leg.transitLeg } : {}),
+        ...(leg.walk ? { walk: leg.walk } : {}),
+      });
       backCursor += leg.minutes;
     }
     const homeAgain = backCursor;
@@ -131,7 +140,7 @@ export class RoutineBuilder {
   /** Where a home parcel puts a commuter: on its access point, walking its street. */
   private endOfParcel(parcelId: string): CommuteEnd {
     const p = this.world.parcelsById.get(parcelId)!;
-    return { point: p.access.point, place: { kind: 'edge', id: p.access.edgeId } };
+    return { point: p.access.point, place: { kind: 'parcel', id: parcelId } };
   }
 
   /** Where a job puts a commuter: a building's door, a station itself, or a route's first terminus. */
@@ -150,7 +159,7 @@ export class RoutineBuilder {
     from: CommuteEnd,
     to: CommuteEnd,
     departMin: number,
-  ): { minutes: number; activity: Activity; place: PlaceRef; transitLeg?: TransitLeg }[] {
+  ): { minutes: number; activity: Activity; place: PlaceRef; transitLeg?: TransitLeg; walk?: ScheduledWalk }[] {
     const boardStop = this.world.nearestStopId(from.point);
     const alightStop = this.world.nearestStopId(to.point);
 
@@ -160,15 +169,23 @@ export class RoutineBuilder {
         const wa = walkMinutes(from.point, this.world.stopsById.get(boardStop)!.position, 1, 30);
         const wb = walkMinutes(this.world.stopsById.get(alightStop)!.position, to.point, 1, 30);
         const ride = Math.max(1, this.rideBetween(route, boardStop, alightStop));
+        const board: CommuteEnd = { point: this.world.stopsById.get(boardStop)!.position, place: { kind: 'stop', id: boardStop } };
+        const alight: CommuteEnd = { point: this.world.stopsById.get(alightStop)!.position, place: { kind: 'stop', id: alightStop } };
+        const walkToBoard = this.world.walkPath(from.point, board.point, from.place, board.place);
+        const walkFromAlight = this.world.walkPath(alight.point, to.point, alight.place, to.place);
         return [
-          { minutes: wa, activity: 'commuting', place: from.place },
+          { minutes: walkDuration(walkToBoard, wa), activity: 'commuting', place: from.place, ...(walkToBoard ? { walk: walkToBoard } : {}) },
           { minutes: Math.max(1, Math.round(route.headwayMin / 2)), activity: 'transit_wait', place: { kind: 'stop', id: boardStop } },
           { minutes: ride, activity: 'commuting', place: { kind: 'route', id: route.id }, transitLeg: { routeId: route.id, boardStopId: boardStop, alightStopId: alightStop } },
-          { minutes: wb, activity: 'commuting', place: to.place },
+          { minutes: walkDuration(walkFromAlight, wb), activity: 'commuting', place: alight.place, ...(walkFromAlight ? { walk: walkFromAlight } : {}) },
         ];
       }
     }
-    return [{ minutes: walkMinutes(from.point, to.point, 5, 120), activity: 'commuting', place: from.place }];
+    const walk = this.world.walkPath(from.point, to.point, from.place, to.place);
+    return [{
+      minutes: walkDuration(walk, walkMinutes(from.point, to.point, 5, 120)),
+      activity: 'commuting', place: from.place, ...(walk ? { walk } : {}),
+    }];
   }
 
   private inService(route: ServiceRoute, minuteOfDay: number): boolean {
@@ -230,6 +247,7 @@ function toEntries(segments: Segment[]): RoutineEntry[] {
         activity: seg.activity,
         place: seg.place,
         ...(seg.transitLeg ? { transitLeg: seg.transitLeg } : {}),
+        ...(seg.walk ? { walk: seg.walk } : {}),
       });
       s = e;
     }
@@ -243,4 +261,8 @@ function toEntries(segments: Segment[]): RoutineEntry[] {
   const last = segments[segments.length - 1]!;
   if (first.startW > 0) emit(0, first.startW, last);
   return entries;
+}
+
+function walkDuration(walk: ScheduledWalk | undefined, fallback: number): number {
+  return walk ? Math.min(120, Math.max(1, Math.ceil(walk.totalDistanceM / WALK_M_PER_MIN))) : fallback;
 }

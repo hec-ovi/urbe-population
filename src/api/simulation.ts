@@ -3,7 +3,7 @@
  * population, crowd, instancing and behavior layers.
  */
 
-import { validateInput } from './validate.js';
+import { validateInput, validateSave } from './validate.js';
 import { WorldModel, type Workplace } from '../world/model.js';
 import { HousingStock } from '../population/housing.js';
 import { HouseholdLedger } from '../population/household.js';
@@ -28,7 +28,16 @@ import type { NamePool, NPCTypeSet } from '../schemas/npc-types.js';
 import type { SimulationParams } from '../schemas/params.js';
 import type { PopulationStats } from '../schemas/population.js';
 import type { CrowdOpts, CrowdScope, CrowdSlice } from '../schemas/crowd.js';
-import type { BehaviorState, FlagOp, JobPlace, NPCInstance, NPCQuery, ReservedSpec, VendorQuery } from '../schemas/npc.js';
+import type {
+  BehaviorState,
+  FlagOp,
+  JobPlace,
+  NPCContinuityState,
+  NPCInstance,
+  NPCQuery,
+  ReservedSpec,
+  VendorQuery,
+} from '../schemas/npc.js';
 
 export interface SimulationInput {
   seed: string | number;
@@ -130,6 +139,10 @@ export class CitySimulation {
     return this.behavior.behaviorAt(npcId, timeMin);
   }
 
+  continuityAt(npcId: string, timeMin: number): NPCContinuityState {
+    return this.behavior.continuityAt(npcId, timeMin);
+  }
+
   interrupt(npcId: string, timeMin: number): void {
     this.behavior.interrupt(npcId, timeMin);
   }
@@ -186,6 +199,7 @@ export class CitySimulation {
 
   /** Replays a save's interaction log through the normal code paths. */
   restore(save: SimulationSave): void {
+    validateSave(save);
     if (save.seed !== String(this.input.seed)) {
       throw new SimulationError('E_INVALID_INPUT', 'save.seed: save belongs to a different seed', { field: 'save.seed' });
     }
@@ -236,6 +250,7 @@ export class CitySimulation {
       this.params,
       this.assignment,
       this.genders,
+      this.registry,
     );
     return this.crowdModel;
   }

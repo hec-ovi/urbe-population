@@ -39,6 +39,7 @@ import { adultId } from '../instancing/ids.js';
 import { SimulationError } from '../schemas/errors.js';
 import type { AssignmentModel } from '../population/assignment.js';
 import type { GenderResolver } from '../instancing/gender.js';
+import type { Registry } from '../instancing/registry.js';
 import type { WorldModel, CrowdEdge, Workplace } from '../world/model.js';
 import type { ResolvedParams } from '../population/defaults.js';
 import type { NPCTypeSet, NPCCategory } from '../schemas/npc-types.js';
@@ -98,6 +99,7 @@ export class CrowdModel {
     private readonly params: ResolvedParams,
     private readonly assignment: AssignmentModel,
     private readonly genders: GenderResolver,
+    private readonly registry: Registry,
   ) {
     this.fastKey = streamKey(seed, 'crowd');
     for (const t of typeSet.types) this.categoryByType.set(t.type, t.category);
@@ -296,6 +298,7 @@ export class CrowdModel {
       trip: span(trip),
       type: g.type,
       gender,
+      appearanceSeed: this.appearanceSeed(crowdId),
       activity: g.activity,
       place: { kind: 'edge', id: edge.id },
       progress: direction === 1 ? walked : 1 - walked,
@@ -351,6 +354,7 @@ export class CrowdModel {
       trip: span(trip),
       type: g.type,
       gender: this.genders.draw(r),
+      appearanceSeed: this.appearanceSeed(crowdId),
       activity: 'transit_wait',
       place: { kind: 'stop', id: stopId },
       progress: 0,
@@ -375,16 +379,22 @@ export class CrowdModel {
     if (adultIdx === undefined) return undefined;
     const shift = shiftSpanAt(this.assignment.jobOfSlot(globalSlot).shift, timeMin);
     if (!shift) return undefined;
+    const crowdId = wp.place.kind === 'parcel' ? parcelHandle(wp.place.id, local) : stationHandle(wp.place.id, local);
     return {
-      crowdId: wp.place.kind === 'parcel' ? parcelHandle(wp.place.id, local) : stationHandle(wp.place.id, local),
+      crowdId,
       trip: { startMin: shift.startMin, endMin: shift.endMin - 1 },
       type: this.assignment.typeOfAdult(adultIdx).type,
       gender: this.genders.of(adultId(adultIdx)),
+      appearanceSeed: this.registry.instances.get(adultId(adultIdx))?.appearanceSeed ?? this.appearanceSeed(adultId(adultIdx)),
       activity: 'working',
       place: wp.place,
       progress: 0,
       direction: 1,
     };
+  }
+
+  private appearanceSeed(identityId: string): number {
+    return rand(this.seed, 'appearance', identityId).int(4294967296);
   }
 
   /**
