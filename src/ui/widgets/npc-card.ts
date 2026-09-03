@@ -91,7 +91,7 @@ export class NpcCard {
     const jobBody = el('div', 'card-block-content');
 
     if (npc.job) {
-      const shiftTime = `${formatHourMin(npc.job.shift.startMin)} – ${formatHourMin(npc.job.shift.endMin)}`;
+      const shiftTime = `${formatHourMin(npc.job.shift.startMin)} to ${formatHourMin(npc.job.shift.endMin)}`;
       const daysStr = npc.job.shift.days.map((d) => dayName(d)).join(' ');
       jobBody.append(
         kvRow('Role', npc.job.role, 'text-highlight'),

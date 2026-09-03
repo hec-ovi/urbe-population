@@ -1,16 +1,18 @@
 # Changelog
 
+0.9.1: the rendered testbed contract covers time controls, crowd selection, NPC inspection and contained failures through Testing Library and user-event. Startup reports a closed error code in the page. The browser UI remains isolated behind `CityFeed`.
+
 0.9.0: an instanced NPC keeps the appearance seed of the crowd body that became that person. `continuityAt` projects the exact weekly entry, progress, next destination and animation, with commute routes built only from Connections `path3`. Interruptions freeze that projection, and save restore reproduces the same identity, body traits and progress.
 
 0.8.0: rail stations carry platform and fare staff through their service hours, and every bus, train and subway route carries enough drivers for its round trip and headway. Building workers keep `job.parcelId`; station and vehicle workers use `transitJob`. Type gaps keep `parcelTypes` and add `nonParcelPlaces` when the missing category affects a station or route.
 
-0.7.0: a worker's type and the post they hold agree. The post's role picks the type categories that may fill it, best first (a vendor role from vendor types, a service or reception post from vendor then worker types, a guard post from authority then worker types), and grounding narrows before the category widens, so a themed set staffs its harbour crane operator at the factory and its mall vendor at the counter instead of behind a coffee machine. `populationStats().typeGaps` names any role the set has no admitting category for, and transit types hold no parcel post.
+0.7.0: a worker's type and the post they hold agree. The post's role picks the type categories that may fill it, best first (a vendor role from vendor types, a service or reception post from vendor then worker types, a guard post from authority then worker types), and grounding narrows before the category widens. A themed set staffs its harbour crane operator at the factory and its mall vendor at the counter. `populationStats().typeGaps` names any role the set has no admitting category for, and transit types hold no parcel post.
 
 0.6.4: the blueprint slice is verified against atlas 0.7.0 and declares only what the population reads: districts, street edges with their sidewalk widths, parcels, transit and stats. Street class, level, nodes and crossings belong to the host that draws the city, so a new atlas street class such as `alley` needs no change here; pedestrians follow sidewalk width, and a highway deck carries none.
 
 0.6.3: the contract states where a worker's type and role each come from. The type is naming's, grounded on the parcel type, so a coffee shop staffs baristas; `job.role` is the interior's own role name for the post when the parcel ships an NpcSupport, so a `role` filter on getNPCVendor matches the interior's vocabulary and nothing else.
 
-0.6.2: a trip's stated span is inclusive on both ends. `trip.endMin` is the last whole minute the body is on its edge, at its stop or on shift, so a handle read at 780 instantiates at 780 and 781 and the next body of that slot starts at 782. Consumers that hold a person until `endMin` keep them for the whole trip instead of losing the final minute.
+0.6.2: a trip's stated span is inclusive on both ends. `trip.endMin` is the last whole minute the body is on its edge, at its stop or on shift, so a handle read at 780 instantiates at 780 and 781 and the next body of that slot starts at 782. Consumers hold a person through `endMin` for the complete trip.
 
 0.6.1: a street or stop handle resolves to a real free person of its type and gender. Seeded probes prefer someone whose routine has them outdoors at that minute; when the type is too rare for the probes to land on, one pass over the adult index takes the first free match, so the village's two police officers instantiate whenever one is free and E_NO_MATCH means the city has nobody.
 

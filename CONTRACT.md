@@ -2,12 +2,12 @@
 
 Purpose: statistical NPC population with lazy instantiation: crowds run cheap by type, a specific NPC gets a full deterministic life (home, job, family, routine, name) only on interaction, and stays persistent from then on.
 
-Status: v0.9.0 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
+Status: v0.9.1 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
 
 ## Conventions
 - Time: integer minutes since world epoch (Monday 00:00). Day = floor(t / 1440) % 7, 0 = Monday; minute of day = t % 1440. Routines repeat weekly.
 - Determinism: aggregate outputs (populationStats, crowd) are pure functions of inputs and time, identical for a seed regardless of call order. Instanced outputs depend on the ordered interaction history: same seed and same interaction order, identical population.
-- No LLM, no wall clock, no ambient randomness, no I/O: an embeddable TypeScript library the engine hosts. A future multiplayer source of truth (API or websocket) would wrap this same surface; not built now.
+- No LLM, no wall clock, no ambient randomness, no I/O: an embeddable TypeScript library whose host owns the runtime process and persistence boundary.
 
 ## In
 `createSimulation(input): CitySimulation`
@@ -54,7 +54,7 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - Conservation: instanced NPCs never contradict aggregate stats; an assigned home unit, job slot or crowd identity is never reassigned; an instance never changes identity, home or family except through applyFlag.
 - Visible identity: a crowd handle that becomes an NPC carries its `appearanceSeed` into that instance. Recreating the simulation from its save reproduces the same npcId, name, gender, body seed, schedule progress and next destination.
 - Scheduled walking: each commute walk is the deterministic shortest route through Connections' graph, with equal routes settled by edge and node id. Its public path is composed only of the authoritative `path3` values in travel order.
-- Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs. The one exception is a street or stop handle of a type too rare for seeded probes to land on: it falls back to a single pass over the adult index to find a free match, so a rare type resolves instead of failing, and `E_NO_MATCH` means the city really has nobody free of that type and gender.
+- Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs. The one exception is a street or stop handle of a type too rare for seeded probes to land on: it falls back to a single pass over the adult index to find a free match. `E_NO_MATCH` means the city has nobody free of that type and gender.
 - Trip identity: a street slot runs back-to-back traversals of its edge (`max(2, round(length / 80))` minutes), a stop slot back-to-back 8 minute waits, staggered so trips start at every minute; whether a trip exists is fixed by the place's count at the trip's own start minute, so a handle never dies before its `trip.endMin` however the street thins. `startMin` and `endMin` are both minutes the body is there: a 2 minute traversal read at 780 states `{ 780, 781 }` and instantiates at 780 and 781. A parcel handle states the on-duty span the same way, ending on the worker's last minute on shift. Trips do not continue across edges: the crowd is a flow per street, and the body that leaves an edge is not the one that appears on the next.
 - Staffing is a rota: posts (people on duty at once) x waves (shifts tiling the open span) x day crews (five days each, no overlap). An open place is staffed and vendor-queryable at every minute of its opening hours on every day it opens, with the same headcount on a Sunday as on a Tuesday, and empty when closed. Interior role [min, max] counts set building posts; 24/7 places get three waves plus security; night-only places staff night shifts. Rail stations carry one platform post per line plus a fare post during service. Each route carries enough drivers for its round trip and headway. Every staffed post maps to an employed resident with a commute.
 - When a city has more job slots than employed residents, slots fill breadth-first: every workplace's opening rota before any workplace's deeper slots, so small venues stay open and large employers carry the shortfall.

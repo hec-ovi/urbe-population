@@ -1,6 +1,6 @@
 {
   "name": "@urbe/simulation",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Statistical NPC city population with lazy deterministic instantiation",
   "type": "module",
   "main": "dist/index.js",
@@ -22,6 +22,9 @@
   },
   "license": "UNLICENSED",
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/user-event": "^14.6.7",
+    "happy-dom": "^20.13.2",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }

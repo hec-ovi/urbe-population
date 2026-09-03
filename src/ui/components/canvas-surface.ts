@@ -4,6 +4,7 @@
  */
 
 import type { Bounds, Point } from '../adapter/types.js';
+import { TestbedError } from '../errors.js';
 
 export class CanvasSurface {
   private readonly ctx: CanvasRenderingContext2D;
@@ -12,7 +13,7 @@ export class CanvasSurface {
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('testbed: 2d canvas context unavailable');
+    if (!ctx) throw new TestbedError('E_CANVAS_UNAVAILABLE', '2D canvas context unavailable');
     this.ctx = ctx;
   }
 

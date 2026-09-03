@@ -1,5 +1,7 @@
 /** DOM primitives shared by every view and widget. */
 
+import { TestbedError } from '../errors.js';
+
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
@@ -12,7 +14,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 /** Element the page skeleton must provide; throws when the markup drifts. */
 export function mountPoint<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
-  if (!node) throw new Error(`testbed: missing #${id} in index.html`);
+  if (!node) throw new TestbedError('E_MOUNT_UNAVAILABLE', `missing #${id} in index.html`);
   return node as T;
 }
 

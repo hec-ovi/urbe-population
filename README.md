@@ -8,7 +8,7 @@ No LLM, no wall clock, no IO. Aggregate answers are pure functions of the inputs
 
 ```
 npm install
-npm test          # contract tests
+npm test          # library and rendered testbed contract tests
 npm run build     # compile to dist/
 npm run testbed   # build the 2D preview and serve it on http://localhost:8080/testbed/
 ```
@@ -46,7 +46,7 @@ Conservation holds throughout: an instanced NPC never contradicts the aggregate 
 - **Aggregate**: per-district demographics (households, employment, shift prevalence) derived from real statistics, ACS households and commuting plus BLS shift data, as pure functions of the seed. The housing stock estimated from floor area is scaled once so residents agree with the blueprint's population.
 - **Crowd**: typed counts and cheap pseudo-agents per street edge, stop, parcel or district at any minute. A crowd agent's id is the handle that instantiates it, alive for the whole trip it names. Presence peaks at the morning and evening rush, holds a midday bump, thins overnight, and lands on the streets whose shops, cafes and offices pull people to them.
 - **Instancing**: on interaction the NPC gets its life. Staffing is a rota of posts, shift waves and day crews, so an open place has staff at every minute it is open, on every day it opens. A 24/7 place runs three waves plus security, a night-only place staffs night shifts, rail stations carry platform and fare staff, and transit routes carry drivers.
-- **Typing**: the post decides who can hold it. A themed type set staffs each parcel from the categories its role admits, closest grounding first, so the harbour crane operator works the factory and the counter goes to a counter person; a role the set has no category for is reported in `populationStats().typeGaps` instead of being filled by whoever was left.
+- **Typing**: the post decides who can hold it. A themed type set staffs each parcel from the categories its role admits, closest grounding first, so the harbour crane operator works the factory and the counter goes to a counter person. `populationStats().typeGaps` reports every role the set has no category for.
 - **Behavior**: a state snapshot per time. Inside a building the NPC runs the interior layer's routine anchors; the host owns the path geometry.
 
 `docs/RESEARCH.md` holds the statistics the defaults stand on, and `CONTRACT.md` is the full surface with its closed error set.
@@ -57,4 +57,4 @@ The 2D preview is a map of the fixture city with the crowd moving over a week; c
 
 ## In the urbe family
 
-It reads the city plan from [urbe-atlas](../atlas), movement networks from [urbe-transit](../connections), building routines from [interiorforge](../interior), and NPC types from [urbe-namer](../naming). [urbe-quests](../quests) queries it for cast, and [urbe-engine](../engine) hosts it and renders whatever it says is on the street. The full picture lives in [urbe](..).
+It reads the city plan from [urbe-atlas](https://github.com/hec-ovi/urbe-atlas), movement networks from [urbe-transit](https://github.com/hec-ovi/urbe-transit), building routines from [interiorforge](https://github.com/hec-ovi/interiorforge), and NPC types from [urbe-namer](https://github.com/hec-ovi/urbe-namer). [urbe-quests](https://github.com/hec-ovi/urbe-quests) queries it for cast, and [urbe-engine](https://github.com/hec-ovi/urbe-engine) hosts it and renders whatever it says is on the street. The full picture lives in [urbe](https://github.com/hec-ovi/urbe).
