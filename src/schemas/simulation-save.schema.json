@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urbe/simulation/save",
+  "$id": "urn:urbe:simulation:save",
   "title": "Simulation save",
   "type": "object",
   "additionalProperties": false,
