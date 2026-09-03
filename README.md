@@ -57,4 +57,4 @@ The 2D preview is a map of the fixture city with the crowd moving over a week; c
 
 ## In the urbe family
 
-It reads the city plan from [urbe-atlas](../urbe-atlas), movement networks from [urbe-transit](../urbe-transit), building routines from [interiorforge](../interiorforge), and NPC types from [urbe-namer](../urbe-namer). [urbe-quests](../urbe-quests) queries it for cast, and [urbe-engine](../urbe-engine) hosts it and renders whatever it says is on the street. The full picture lives in [urbe](../urbe).
+It reads the city plan from [urbe-atlas](../atlas), movement networks from [urbe-transit](../connections), building routines from [interiorforge](../interior), and NPC types from [urbe-namer](../naming). [urbe-quests](../quests) queries it for cast, and [urbe-engine](../engine) hosts it and renders whatever it says is on the street. The full picture lives in [urbe](..).

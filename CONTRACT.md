@@ -13,7 +13,7 @@ Status: v0.9.0 implemented and tested. Statistical defaults documented in docs/R
 `createSimulation(input): CitySimulation`
 
 - `seed: string | number`
-- `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint, verified against blueprint 0.7.0; a full atlas blueprint satisfies it. The slice reads districts, street edges with their sidewalk widths, parcels, transit and stats: street class and level, street nodes and crossings and station geometry belong to the host that draws the city.
+- `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint, verified against the v0.14 base shape; a full v0.14 blueprint or v0.15 blueprint with additive hydrology satisfies it. The slice reads districts, street edges with their sidewalk widths, parcels, transit and stats. Hydrology, street class and level, street nodes and crossings and station geometry belong to the host that draws the city.
 - `networks?`: [src/schemas/networks.ts](src/schemas/networks.ts): consumed slice of connections Networks (walk graph with authoritative `path3`, timetabled transit routes). The flat walk path is compatibility data and is never used for an instanced NPC's commute. Absent: aggregate crowd and timetable fallbacks remain available, while an exact continuity query for a scheduled walk fails closed.
 - `interiors?`: [src/schemas/interiors.ts](src/schemas/interiors.ts): parcelId -> NpcSupport (mirror of ../interior/schemas/npc.schema.json). Absent: per-type synthetic role sets.
 - `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): mirror of naming's npc-types schema (typed set with categories, grounding, weights, embedded themed name pool). Absent: built-in default set.
@@ -62,7 +62,7 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - Standalone: runs against fixture blueprints with no other layer present.
 
 ## Depends on
-- ../atlas/CONTRACT.md (blueprint v0.2)
+- ../atlas/CONTRACT.md (v0.14 base slice; v0.15 hydrology is additive and ignored)
 - ../connections/CONTRACT.md (networks.schema.json: walk + transit slice)
 - ../interior/CONTRACT.md (npc.schema.json)
 - ../naming/CONTRACT.md (npc-types.schema.json, name pool with `givenByGender`)

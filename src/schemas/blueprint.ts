@@ -1,9 +1,10 @@
 /**
  * Consumed slice of the atlas city blueprint.
- * Mirrors ../atlas/schema/blueprint.ts (verified against blueprint 0.7.0):
+ * Mirrors ../atlas/schema/blueprint.ts (verified against the v0.14 base shape and the
+ * additive v0.15 hydrology shape):
  * identical names and field shapes, narrowed to what simulation reads, so a
  * full atlas blueprint satisfies it. Street class and level, street nodes and
- * crossings, and station geometry are the host's business, not the
+ * crossings, station geometry, and hydrology are the host's business, not the
  * population's, and stay out.
  * Units meters, ground plane XZ, 2D points [x, z], polygons CCW.
  */
