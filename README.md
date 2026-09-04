@@ -23,7 +23,7 @@ const barista = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: 9 * 60 });
 const state = sim.continuityAt(barista.npcId, 9 * 60 + 30);
 ```
 
-A seed plus a city blueprint (districts, parcels with type and tier, transit). Optional inputs sharpen it: movement networks with timetables, per-building NPC support files (roles with min and max counts, routine anchors), a themed NPC type set, a name pool, and statistical overrides. Every optional input has a built-in fallback, so it runs on the bundled fixtures with nothing else present.
+A seed plus a city blueprint (districts, parcels with type and tier, transit). Optional inputs sharpen it: movement networks with timetables, per-building NPC support files (roles with min and max counts, routine anchors), a themed NPC type set, a name pool, and statistical overrides. Naming-produced type sets work directly. Host-authored name pools may omit gender buckets or overlap them for names shared by several genders. Every optional input has a built-in fallback, so it runs on the bundled fixtures with nothing else present.
 
 Time is integer minutes since a Monday midnight epoch; routines repeat weekly.
 

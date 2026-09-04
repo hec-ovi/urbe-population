@@ -16,8 +16,8 @@ Status: v0.9.1 implemented and tested. Statistical defaults documented in docs/R
 - `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint, verified against the v0.14 base shape; a full v0.14 blueprint or v0.15 blueprint with additive hydrology satisfies it. The slice reads districts, street edges with their sidewalk widths, parcels, transit and stats. Hydrology, street class and level, street nodes and crossings and station geometry belong to the host that draws the city.
 - `networks?`: [src/schemas/networks.ts](src/schemas/networks.ts): consumed slice of connections Networks (walk graph with authoritative `path3`, timetabled transit routes). The flat walk path is compatibility data and is never used for an instanced NPC's commute. Absent: aggregate crowd and timetable fallbacks remain available, while an exact continuity query for a scheduled walk fails closed.
 - `interiors?`: [src/schemas/interiors.ts](src/schemas/interiors.ts): parcelId -> NpcSupport (mirror of ../interior/schemas/npc.schema.json). Absent: per-type synthetic role sets.
-- `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): mirror of naming's npc-types schema (typed set with categories, grounding, weights, embedded themed name pool). Absent: built-in default set.
-- `namePool?`: explicit override pool ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)). Precedence: this override, else the set's embedded pool, else the built-in default. Names repeat across NPCs by design. A pool carrying naming's `givenByGender` buckets is drawn per gender; a pool without them serves every NPC the whole `given` list.
+- `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): consumer projection of naming's NPC type set (categories, grounding, weights and embedded themed name pool). Every naming-produced set fits directly. Simulation's consumer boundary is a compatible superset: host-authored sets may omit or overlap gender buckets. Absent: built-in default set.
+- `namePool?`: explicit override pool ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)). Precedence: this override, else the set's embedded pool, else the built-in default. Names repeat across NPCs by design. Naming output partitions each given name into one `givenByGender` bucket. A host-authored pool may overlap buckets to make one name directly drawable by several genders; a pool without buckets serves every NPC the whole `given` list.
 - `params?`: [src/schemas/params.ts](src/schemas/params.ts): statistical overrides, all defaulted from research.
 
 ## Out (CitySimulation)
@@ -31,7 +31,7 @@ Status: v0.9.1 implemented and tested. Statistical defaults documented in docs/R
 - `continuityAt(npcId, timeMin): NPCContinuityState`: [src/schemas/npc-continuity.schema.json](src/schemas/npc-continuity.schema.json). Exact scheduled entry, progress, next destination, semantic animation and, for walking, the ordered Connections edge ids, directions and `path3` geometry. This is the public materialization surface for named, focused and quest NPCs.
 - `interrupt(npcId, timeMin)` / `resume(npcId, timeMin)`: player interaction freezes the exact continuity projection at the interruption time; resume returns control to the current schedule.
 - `applyFlag(npcId, op: FlagOp)`: resign, promote (reassigns job, moves home when tier changes), die (dead NPCs never match vendor or quest queries), custom tags.
-- `reserveNPC(spec: ReservedSpec): NPCInstance`: quest layer pre-instanced NPC with fixed name and type; consumes a real statistical slot. `spec.gender` is optional: absent, it comes from the name's own bucket in the pool, else either.
+- `reserveNPC(spec: ReservedSpec): NPCInstance`: quest layer pre-instanced NPC with fixed name and type; consumes a real statistical slot. `spec.gender` is optional: absent, an exclusively male or female name bucket supplies it; a neutral, untagged or overlapping name allows either.
 - `serialize(): SimulationSave` / `restoreSimulation(input, save)`: [src/schemas/simulation-save.schema.json](src/schemas/simulation-save.schema.json). Persists identity-producing events, flags, reservations and interruptions; restore with identical inputs reproduces names, body traits and continuity state exactly.
 
 ## Errors
@@ -65,4 +65,4 @@ Closed set, thrown as `SimulationError { code, message, details? }` ([src/schema
 - ../atlas/CONTRACT.md (v0.14 base slice; v0.15 hydrology is additive and ignored)
 - ../connections/CONTRACT.md (networks.schema.json: walk + transit slice)
 - ../interior/CONTRACT.md (npc.schema.json)
-- ../naming/CONTRACT.md (npc-types.schema.json, name pool with `givenByGender`)
+- ../naming/CONTRACT.md (NPC type producer shape; its exclusive `givenByGender` partition is accepted directly)

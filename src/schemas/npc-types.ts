@@ -1,9 +1,9 @@
 /**
- * TypeScript mirror of ../naming/schema/npc-types.schema.json: the themed NPC
- * type set the naming pass produces, including its themed personal name pool.
- * A built-in default set ships for standalone runs. Name pool precedence:
- * the explicit namePool input override, else the set's embedded pool, else
- * the built-in default.
+ * Consumer projection of the themed NPC type set produced by naming. Every
+ * naming-produced set fits this shape; host-authored sets may additionally omit
+ * gender buckets or overlap them. A built-in default set ships for standalone
+ * runs. Name pool precedence: the explicit namePool input override, else the
+ * set's embedded pool, else the built-in default.
  */
 
 import type { ParcelType, WealthTier } from './blueprint.js';
@@ -53,12 +53,12 @@ export interface NPCGrounding {
 
 /** Names repeat across NPCs by design. */
 export interface NamePool {
-  /** Every given name in the pool: the deduped union of the gender buckets. */
+  /** Flat fallback list. Naming output supplies the deduped union of its buckets. */
   given: string[];
   /**
-   * Given names per gender (naming 0.3). Buckets may overlap: a unisex name
-   * belongs to several. Absent on an untagged pool, and then everyone draws
-   * from `given`.
+   * Given names per gender. Naming output partitions each name into exactly
+   * one bucket. Host-authored pools may overlap them so one name is directly
+   * drawable by several genders. Absent means everyone draws from `given`.
    */
   givenByGender?: GivenByGender;
   family: string[];
