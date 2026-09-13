@@ -1,5 +1,5 @@
 /**
- * TypeScript mirror of ../interior/schemas/npc.schema.json (NpcSupport).
+ * Consumed projection of Interior NPC support; placements are not consumed.
  * Simulation staffs roles within [min, max], picks routine dwell times seeded,
  * and emits anchor-to-anchor walk intents; path geometry over nav stays with
  * the host (interior ships a reference findPath).

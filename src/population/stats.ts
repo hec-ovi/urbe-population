@@ -1,7 +1,4 @@
-/**
- * Aggregate statistics, computed once (lazily) by walking the same assignment
- * model instantiation uses, so aggregates and instances always agree.
- */
+/** Counts initial adult assignments lazily and reports district totals and type gaps. */
 
 import { categoriesForRole } from './role-types.js';
 import type { Demographics } from './demographics.js';

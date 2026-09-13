@@ -20,7 +20,7 @@ export interface SimulationParams {
   sameGenderCoupleShare?: number;
   /** Household composition weights, normalized internally. */
   householdMix?: HouseholdMix;
-  /** Work schedule weights, normalized internally. */
+  /** Accepted compatibility input; staffing determines shifts without these weights. */
   shiftMix?: ShiftMix;
   /**
    * Multiplier on how many people are out in public space. 1 is the

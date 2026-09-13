@@ -1,13 +1,4 @@
-/**
- * Consumed slice of the atlas city blueprint.
- * Mirrors ../atlas/schema/blueprint.ts (verified against the v0.14 base shape and the
- * additive v0.15 hydrology shape):
- * identical names and field shapes, narrowed to what simulation reads, so a
- * full atlas blueprint satisfies it. Street class and level, street nodes and
- * crossings, station geometry, and hydrology are the host's business, not the
- * population's, and stay out.
- * Units meters, ground plane XZ, 2D points [x, z], polygons CCW.
- */
+/** Atlas projection consumed by Simulation. Meters, +Y up, XZ ground, CCW polygons. */
 
 export type Vec2 = [x: number, z: number];
 export type Polygon = Vec2[];

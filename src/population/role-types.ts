@@ -1,9 +1,4 @@
-/**
- * Which NPC type categories may hold which job role, and the candidate ladder
- * that picks a worker's type for a post. A post's role decides the categories
- * that admit it, in preference order, so the person behind a counter is a
- * counter person and never a crane operator with a coffee machine.
- */
+/** Selects themed types compatible with a post, its building use and wealth tier. */
 
 import type { NPCCategory, NPCTypeDef } from '../schemas/npc-types.js';
 import type { ParcelType, WealthTier } from '../schemas/blueprint.js';

@@ -1,0 +1,44 @@
+[
+  {
+    "tag": "div",
+    "className": "legend-container",
+    "children": [
+      {
+        "tag": "div",
+        "className": "legend-header",
+        "children": [
+          {
+            "tag": "span",
+            "className": "legend-title",
+            "text": "MAP LAND USE // PARCELS"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "className": "legend-grid",
+        "children": [
+          {
+            "tag": "div",
+            "className": "legend-item",
+            "each": "entries",
+            "children": [
+              {
+                "tag": "span",
+                "className": "legend-swatch",
+                "attrs": {
+                  "style": "background-color: {{color}}"
+                }
+              },
+              {
+                "tag": "span",
+                "className": "legend-label",
+                "text": "{{label}}"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

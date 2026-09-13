@@ -1,6 +1,6 @@
 {
   "name": "@urbe/simulation",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Statistical NPC city population with lazy deterministic instantiation",
   "type": "module",
   "main": "dist/index.js",
@@ -12,7 +12,13 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "SKILL.md",
+    "CONTRACT.md",
+    "src/schemas",
+    "docs/INDEX.md",
+    "docs/ISSUES.md",
+    "docs/RESEARCH.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

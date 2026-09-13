@@ -1,11 +1,4 @@
-/**
- * Gender assignment. Singles, single parents, roommates and kids draw
- * individually against the sex ratio, keyed by npcId alone. A couple is one
- * household-level draw instead: the two partners get opposite genders unless
- * the household falls in `sameGenderCoupleShare`. Both paths key off stable
- * ids, so a family stub, its full instance and its crowd agent agree whatever
- * order people are instantiated in.
- */
+/** Assigns stable gender draws to individuals and household couples. */
 
 import { hash01, type Rand } from '../core/rng.js';
 import { parseAdultId } from './ids.js';

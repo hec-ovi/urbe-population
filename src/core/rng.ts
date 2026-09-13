@@ -52,11 +52,6 @@ export class Rand {
     return Math.floor(this.next() * n);
   }
 
-  /** Integer in [min, max], inclusive. */
-  intRange(min: number, max: number): number {
-    return min + this.int(max - min + 1);
-  }
-
   pick<T>(arr: readonly T[]): T {
     return arr[this.int(arr.length)]!;
   }

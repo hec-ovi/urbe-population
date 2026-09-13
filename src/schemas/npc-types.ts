@@ -16,7 +16,7 @@ export interface NPCTypeSet {
     model?: string;
   };
   types: NPCTypeDef[];
-  /** Themed pool; family entries may be epithets or patronymics. Min 20 each. */
+  /** Themed pool; given and family name draws must be nonempty. */
   namePool: NamePool;
 }
 
@@ -40,12 +40,12 @@ export interface NPCTypeDef {
  * resident: home-centric, no job. worker: employed at a workplace parcel with
  * shift and commute. vendor: staffs commerce counters. authority: police,
  * military, security; patrols and night coverage. transit: drivers and station
- * staff, tied to service hours. street: street presence, no job, may lack a home.
+ * staff, tied to service hours. street: street presence with an allocated home.
  */
 export type NPCCategory = 'resident' | 'worker' | 'vendor' | 'authority' | 'transit' | 'street';
 
 export interface NPCGrounding {
-  /** District names from the named world. */
+  /** District-name metadata; Simulation selects types by parcel type and tier. */
   districts?: string[];
   parcelTypes?: ParcelType[];
   tiers?: WealthTier[];

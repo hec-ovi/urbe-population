@@ -1,0 +1,28 @@
+[
+  {
+    "tag": "div",
+    "className": "toast-header",
+    "children": [
+      {
+        "tag": "span",
+        "className": "toast-tag toast-tag-{{type}}",
+        "text": "{{title}}"
+      },
+      {
+        "tag": "button",
+        "className": "toast-close",
+        "attrs": {
+          "type": "button",
+          "aria-label": "Close toast"
+        },
+        "text": "\u00d7",
+        "action": "close"
+      }
+    ]
+  },
+  {
+    "tag": "div",
+    "className": "toast-body",
+    "text": "{{message}}"
+  }
+]

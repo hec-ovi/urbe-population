@@ -1,11 +1,11 @@
 /** Wires the feed to the map, the inspector, the time control, and the toast system. */
 
-import { mountPoint } from './components/dom.js';
+import { mountPoint } from './ui/dom.js';
 import { toast } from './components/toast.js';
-import { CityMapView } from './views/city-map.js';
-import { InspectorView } from './views/inspector.js';
-import { Legend } from './widgets/legend.js';
-import { TimeControls } from './widgets/time-controls.js';
+import { CityMapView } from './components/city-map.js';
+import { InspectorView } from './components/inspector.js';
+import { Legend } from './components/legend.js';
+import { TimeControls } from './components/time-controls.js';
 import { CANVAS_THEME, PARCEL_COLORS, colorOf } from './theme.js';
 import type { CityFeed, NpcSummary } from './adapter/types.js';
 
@@ -17,7 +17,7 @@ export class TestbedApp {
   private readonly map: CityMapView;
   private readonly inspector: InspectorView;
   private readonly controls: TimeControls;
-  private selectedNpcId: string | undefined;
+  private selected: NpcSummary | undefined;
 
   constructor(private readonly feed: CityFeed) {
     const scene = feed.scene();
@@ -39,7 +39,10 @@ export class TestbedApp {
       },
     });
 
-    this.inspector = new InspectorView(mountPoint('inspector'));
+    this.inspector = new InspectorView(mountPoint('inspector'), {
+      copyId: () => this.copy(this.selected?.npcId),
+      copyJson: () => this.copy(this.selected && JSON.stringify(this.selected, null, 2)),
+    });
 
     new Legend(mountPoint('legend')).show(
       scene.parcelTypes.map((type) => ({ label: type, color: colorOf(PARCEL_COLORS, type, CANVAS_THEME.parcelFallback) })),
@@ -69,21 +72,31 @@ export class TestbedApp {
     toast.info('Testbed simulation active · Mon 09:00', 'INITIALIZED');
   }
 
+  private async copy(text: string | undefined): Promise<void> {
+    if (!text || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Copied to clipboard');
+    } catch (error) {
+      toast.warn(error instanceof Error ? error.message : String(error), 'COPY FAILED');
+    }
+  }
+
   private refresh(timeMin: number): void {
     this.map.render(this.feed.dots(timeMin));
-    if (this.selectedNpcId) {
-      this.inspector.showBehavior(this.feed.behavior(this.selectedNpcId, timeMin));
+    if (this.selected) {
+      this.inspector.showBehavior(this.feed.behavior(this.selected.npcId, timeMin));
     }
   }
 
   private pick(resolve: () => NpcSummary, onSuccess?: (npc: NpcSummary) => void): void {
     try {
       const npc = resolve();
-      this.selectedNpcId = npc.npcId;
+      this.selected = npc;
       this.inspector.showNpc(npc);
       if (onSuccess) onSuccess(npc);
     } catch (err) {
-      this.selectedNpcId = undefined;
+      this.selected = undefined;
       const msg = err instanceof Error ? err.message : String(err);
       this.inspector.showError(msg);
       toast.warn(msg, 'QUERY FAILED');

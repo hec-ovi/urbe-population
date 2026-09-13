@@ -108,7 +108,7 @@ export class Instantiator {
         if (this.registry.vacatedSlots.has(globalSlot)) continue;
         const job = this.assignment.jobOfSlot(globalSlot);
         if (query.role && job.role !== query.role) continue;
-        if (!this.shiftCovers(job, query.timeMin)) continue;
+        if (!shiftCoversTime(job.shift, query.timeMin)) continue;
         const adultIdx = this.assignment.adultOfSlot(globalSlot);
         if (adultIdx === undefined) continue;
         if (query.type && this.assignment.typeOfAdult(adultIdx).type !== query.type) continue;
@@ -161,10 +161,6 @@ export class Instantiator {
       if (parcelTypes) return this.world.workplaces.filter((w) => w.parcelType !== undefined && parcelTypes.includes(w.parcelType));
     }
     return this.world.workplaces;
-  }
-
-  shiftCovers(job: JobAssignment, timeMin: number): boolean {
-    return shiftCoversTime(job.shift, timeMin);
   }
 
   private plausiblyOutdoors(adultIdx: number, timeMin: number): boolean {

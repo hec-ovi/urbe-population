@@ -32,10 +32,7 @@ export interface WorkplaceStaffing {
   /** posts * waves * crews: every slot belongs to the rota. */
   slotCount: number;
   shiftLenMin: number;
-  allDay: boolean;
-  nightOnly: boolean;
   openMin: number;
-  closeMin: number;
   openDays: number[];
 }
 
@@ -46,10 +43,7 @@ const EMPTY: WorkplaceStaffing = {
   crews: 0,
   slotCount: 0,
   shiftLenMin: 0,
-  allDay: false,
-  nightOnly: false,
   openMin: 0,
-  closeMin: 0,
   openDays: [],
 };
 
@@ -110,10 +104,7 @@ export function staffTransit(posts: number, serviceStartMin: number, serviceEndM
     crews,
     slotCount: posts * waves * crews,
     shiftLenMin: Math.ceil(spanMin / waves),
-    allDay: spanMin >= MIN_PER_DAY,
-    nightOnly: false,
     openMin,
-    closeMin,
     openDays: ALL_DAYS,
   };
 }
@@ -145,10 +136,7 @@ export function staffWorkplace(seed: string | number, parcel: Parcel, floorArea:
     crews,
     slotCount: posts * waves * crews,
     shiftLenMin,
-    allDay: profile.allDay,
-    nightOnly,
     openMin,
-    closeMin,
     openDays,
   };
 }

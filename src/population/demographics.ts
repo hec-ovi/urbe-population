@@ -1,8 +1,4 @@
-/**
- * Household structure pass: for every district/tier group, the household
- * count and the offsets that give every adult and kid a stable identity.
- * This is the only O(population) pass; everything per-NPC stays lazy.
- */
+/** Indexes household composition and adult offsets in calibrated housing groups. */
 
 import { lastAtMost } from '../core/search.js';
 import type { ResolvedParams } from './defaults.js';
@@ -12,7 +8,6 @@ import type { WorldModel } from '../world/model.js';
 interface GroupIndex {
   households: number;
   adultOffset: number;
-  kidOffset: number;
 }
 
 export class Demographics {
@@ -31,7 +26,7 @@ export class Demographics {
     let households = 0;
     for (const group of world.groups) {
       const count = Math.floor(group.totalUnits * params.occupancyRate);
-      this.groupIndex.push({ households: count, adultOffset, kidOffset });
+      this.groupIndex.push({ households: count, adultOffset });
       adultOffset += ledger.adultsBefore(group.index, count);
       kidOffset += ledger.kidsBefore(group.index, count);
       households += count;

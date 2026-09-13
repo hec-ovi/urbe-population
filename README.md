@@ -1,60 +1,23 @@
-# urbe-population
+# @urbe/simulation 0.9.2
 
-Statistical NPC population for a whole city, as an embeddable TypeScript library. Thousands of people appear to live full lives while costing almost nothing; a specific NPC is computed in full only when a player interacts with it, and from that moment it is persistent. Same seed and same interaction order give the same population.
-
-No LLM, no wall clock, no IO. Aggregate answers are pure functions of the inputs and the time, identical whatever order they are asked in.
+An embeddable TypeScript API for statistical crowds and persistent NPC identities during gameplay. The host supplies prepared city data, game time and ordered interactions. Simulation performs no I/O, wall-clock updates or LLM calls.
 
 ## Run
 
-```
-npm install
-npm test          # library and rendered testbed contract tests
-npm run build     # compile to dist/
-npm run testbed   # build the 2D preview and serve it on http://localhost:8080/testbed/
-```
-
-## In
-
-```ts
-import { createSimulation, FIXTURE_BLUEPRINT, FIXTURE_INTERIORS } from '@urbe/simulation';
-
-const sim = createSimulation({ seed: 42, blueprint: FIXTURE_BLUEPRINT, interiors: FIXTURE_INTERIORS });
-const barista = sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: 9 * 60 });
-const state = sim.continuityAt(barista.npcId, 9 * 60 + 30);
+```sh
+npm ci
+npm run build
+npm test
+npm run typecheck
+npm run testbed
 ```
 
-A seed plus a city blueprint (districts, parcels with type and tier, transit). Optional inputs sharpen it: movement networks with timetables, per-building NPC support files (roles with min and max counts, routine anchors), a themed NPC type set, a name pool, and statistical overrides. Naming-produced type sets work directly. Host-authored name pools may omit gender buckets or overlap them for names shared by several genders. Every optional input has a built-in fallback, so it runs on the bundled fixtures with nothing else present.
+The standalone 2D testbed serves `/testbed/` on localhost:8080, trying the next free port when occupied. `PORT` selects the starting port. Generated `dist/` and `testbed/` stay out of git.
 
-Time is integer minutes since a Monday midnight epoch; routines repeat weekly.
+## Use
 
-## Out
+[SKILL.md](SKILL.md) contains the copyable library example and defaults. [CONTRACT.md](CONTRACT.md) lists every call, schema and error. [docs/INDEX.md](docs/INDEX.md) maps the library and testbed.
 
-- **`populationStats()`**: residents, households, employment and NPC type counts per district and tier. Residents match the blueprint's own population figure within 3 percent, and the factor applied to the housing stock to get there is published alongside, with any staffed role the typed set cannot cover.
-- **`crowd(time, scope)`**: typed counts for a city, district, street edge, transit stop or parcel, plus a deterministic capped sample of agents; a radius scope (centre and metres) returns every person on the streets and stops inside it, uncapped, for the engine to render exactly what the player sees. Every agent id names one trip (a traversal of a street, a wait at a stop, a shift at a building or station), comes back on every poll during it with the span stated on the agent (`startMin` and `endMin` are both minutes the person is there), and instantiates that exact person at any minute of it. How many people are outdoors at a given hour follows real time-use statistics, and `params.streetDensity` scales it for a busier or quieter city.
-- **`instantiate(handle)` / `getNPCVendor(query)` / `findNPCs(query)`**: a full NPC life, conditioned on everyone already instantiated. Home unit, building job or transit post with shift, family, name, gender, transit line, and a gapless weekly routine.
-- **`continuityAt(npcId, time)`**: that person's current schedule entry, progress, next destination and animation. A commute includes the ordered Connections edges and their authoritative 3D paths.
-- **`behaviorAt(npcId, time)`**: the smaller compatibility view of the same state: interior anchor, street edge, transit leg or home.
-- **`interrupt` / `resume`**: player interaction pauses a routine and puts it back.
-- **`applyFlag`**: resign, promote (which reassigns the job and moves the home when the tier changes), die, or custom tags. Dead NPCs stop matching vendor and quest queries.
-- **`reserveNPC(spec)`**: a story-critical NPC with a fixed name and type, taking a real statistical slot.
-- **`serialize()` / `restoreSimulation()`**: persistence. Restoring with the same inputs reproduces the exact state.
+Creation prepares Atlas places, Connections paths, Interior roles and Naming catalogs. Engine creates or restores Simulation when the game loads; Quests resolves its cast through that same API. The package has no runtime dependencies.
 
-Conservation holds throughout: an instanced NPC never contradicts the aggregate stats, a home unit or job slot is never handed out twice, and an identity never changes except through a flag. The cost of `crowd()` and `instantiate()` does not grow with the total population; a sampled crowd query runs sub-millisecond warm on an 8000 edge, 50k resident city.
-
-## How it works
-
-- **Aggregate**: per-district demographics (households, employment, shift prevalence) derived from real statistics, ACS households and commuting plus BLS shift data, as pure functions of the seed. The housing stock estimated from floor area is scaled once so residents agree with the blueprint's population.
-- **Crowd**: typed counts and cheap pseudo-agents per street edge, stop, parcel or district at any minute. A crowd agent's id is the handle that instantiates it, alive for the whole trip it names. Presence peaks at the morning and evening rush, holds a midday bump, thins overnight, and lands on the streets whose shops, cafes and offices pull people to them.
-- **Instancing**: on interaction the NPC gets its life. Staffing is a rota of posts, shift waves and day crews, so an open place has staff at every minute it is open, on every day it opens. A 24/7 place runs three waves plus security, a night-only place staffs night shifts, rail stations carry platform and fare staff, and transit routes carry drivers.
-- **Typing**: the post decides who can hold it. A themed type set staffs each parcel from the categories its role admits, closest grounding first, so the harbour crane operator works the factory and the counter goes to a counter person. `populationStats().typeGaps` reports every role the set has no category for.
-- **Behavior**: a state snapshot per time. Inside a building the NPC runs the interior layer's routine anchors; the host owns the path geometry.
-
-`docs/RESEARCH.md` holds the statistics the defaults stand on, and `CONTRACT.md` is the full surface with its closed error set.
-
-## Testbed
-
-The 2D preview is a map of the fixture city with the crowd moving over a week; click a walking dot to instantiate that person, click a workplace to meet whoever is on duty. Its frontend lives in `src/ui` (views, widgets, components) and reaches the library through one adapter, `src/ui/adapter/city-feed.ts`, so styling and rendering stay clear of the simulation. `npm run testbed` compiles it into the generated `testbed/` folder and serves it on http://localhost:8080/testbed/, taking the next free port when 8080 is busy (`PORT` picks another). `src/ui/CONTRACT.md` describes the pieces.
-
-## In the urbe family
-
-It reads the city plan from [urbe-atlas](https://github.com/hec-ovi/urbe-atlas), movement networks from [urbe-transit](https://github.com/hec-ovi/urbe-transit), building routines from [interiorforge](https://github.com/hec-ovi/interiorforge), and NPC types from [urbe-namer](https://github.com/hec-ovi/urbe-namer). [urbe-quests](https://github.com/hec-ovi/urbe-quests) queries it for cast, and [urbe-engine](https://github.com/hec-ovi/urbe-engine) hosts it and renders whatever it says is on the street. The full picture lives in [urbe](https://github.com/hec-ovi/urbe).
+Counts are computed from the prepared population; interaction establishes a named person and records replay events. Exact walking continuity needs network `path3`. The 2D fixture is a logical preview, with no physical journey or frame-rate guarantee. [Boundary proposals](docs/ISSUES.md) cover occupancy, capacity, movement and save compatibility.

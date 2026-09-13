@@ -1,7 +1,7 @@
 /**
  * Statistical defaults from real demographic sources (see docs/RESEARCH.md):
  * ACS 2024 households and commuting, BLS shift prevalence, standard 24/7
- * coverage arithmetic. Every value is overridable via SimulationParams.
+ * coverage arithmetic. SimulationParams exposes statistical overrides.
  */
 
 import type { ParcelType, WealthTier } from '../schemas/blueprint.js';
@@ -14,7 +14,6 @@ export interface ResolvedParams {
   sameGenderCoupleShare: number;
   laborForceParticipation: number;
   householdMix: { single: number; couple: number; coupleKids: number; singleParent: number; shared: number };
-  shiftMix: { day: number; evening: number; night: number; rotating: number };
   streetDensity: number;
   defaultHeadwayMin: number;
 }
@@ -32,12 +31,6 @@ export function resolveParams(params?: SimulationParams): ResolvedParams {
       coupleKids: params?.householdMix?.coupleKids ?? 0.21,
       singleParent: params?.householdMix?.singleParent ?? 0.1,
       shared: params?.householdMix?.shared ?? 0.13,
-    },
-    shiftMix: {
-      day: params?.shiftMix?.day ?? 0.84,
-      evening: params?.shiftMix?.evening ?? 0.06,
-      night: params?.shiftMix?.night ?? 0.04,
-      rotating: params?.shiftMix?.rotating ?? 0.06,
     },
     streetDensity: params?.streetDensity ?? 1,
     defaultHeadwayMin: params?.defaultHeadwayMin ?? 12,

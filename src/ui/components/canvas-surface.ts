@@ -69,17 +69,13 @@ export class CanvasSurface {
   }
 
   /** Draw a world bounding box / rectangle. */
-  box(bounds: Bounds, stroke: string, fill?: string, strokeWidthPx = 1): void {
+  box(bounds: Bounds, stroke: string, strokeWidthPx = 1): void {
     const min = this.toScreen([bounds.minX, bounds.minY]);
     const max = this.toScreen([bounds.maxX, bounds.maxY]);
     const x = Math.min(min[0], max[0]);
     const y = Math.min(min[1], max[1]);
     const w = Math.abs(max[0] - min[0]);
     const h = Math.abs(max[1] - min[1]);
-    if (fill) {
-      this.ctx.fillStyle = fill;
-      this.ctx.fillRect(x, y, w, h);
-    }
     this.ctx.strokeStyle = stroke;
     this.ctx.lineWidth = strokeWidthPx;
     this.ctx.strokeRect(x, y, w, h);

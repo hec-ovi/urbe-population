@@ -3,7 +3,8 @@
  * population, crowd, instancing and behavior layers.
  */
 
-import { validateInput, validateSave } from './validate.js';
+import { validateInput } from './validate.js';
+import { validateSave } from './validate-save.js';
 import { WorldModel, type Workplace } from '../world/model.js';
 import { HousingStock } from '../population/housing.js';
 import { HouseholdLedger } from '../population/household.js';
@@ -21,11 +22,8 @@ import { Registry, type SaveEvent, type SimulationSave } from '../instancing/reg
 import { BehaviorModel } from '../behavior/model.js';
 import { DEFAULT_TYPE_SET } from '../defaults/default-types.js';
 import { SimulationError } from '../schemas/errors.js';
-import type { CityBlueprint } from '../schemas/blueprint.js';
-import type { Networks } from '../schemas/networks.js';
-import type { NpcSupport } from '../schemas/interiors.js';
-import type { NamePool, NPCTypeSet } from '../schemas/npc-types.js';
-import type { SimulationParams } from '../schemas/params.js';
+import type { NPCTypeSet } from '../schemas/npc-types.js';
+import type { SimulationInput, InstantiateHandle } from '../schemas/input.js';
 import type { PopulationStats } from '../schemas/population.js';
 import type { CrowdOpts, CrowdScope, CrowdSlice } from '../schemas/crowd.js';
 import type {
@@ -39,18 +37,7 @@ import type {
   VendorQuery,
 } from '../schemas/npc.js';
 
-export interface SimulationInput {
-  seed: string | number;
-  blueprint: CityBlueprint;
-  networks?: Networks;
-  /** parcelId -> interior NpcSupport. */
-  interiors?: Record<string, NpcSupport>;
-  npcTypes?: NPCTypeSet;
-  namePool?: NamePool;
-  params?: SimulationParams;
-}
-
-export type InstantiateHandle = { npcId: string } | { crowdId: string; timeMin: number } | VendorQuery;
+export type { SimulationInput, InstantiateHandle } from '../schemas/input.js';
 
 export class CitySimulation {
   private readonly params: ResolvedParams;
@@ -277,7 +264,6 @@ export class CitySimulation {
     const job = place && publicJob
       ? {
           workplace: this.workplaceOf(place)!,
-          localSlot: 0,
           globalSlot: -1,
           role: publicJob.role,
           shift: publicJob.shift,

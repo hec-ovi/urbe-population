@@ -1,4 +1,4 @@
-/** Closed error set. Every thrown error is a SimulationError. */
+/** Closed set of Simulation domain errors. */
 
 export type SimulationErrorCode =
   | 'E_INVALID_INPUT'

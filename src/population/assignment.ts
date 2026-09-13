@@ -20,7 +20,6 @@ import type { Shift } from '../schemas/npc.js';
 
 export interface JobAssignment {
   workplace: Workplace;
-  localSlot: number;
   globalSlot: number;
   role: string;
   shift: Shift;
@@ -60,7 +59,6 @@ export class AssignmentModel {
     const localSlot = globalSlot - workplace.slotOffset;
     return {
       workplace,
-      localSlot,
       globalSlot,
       role: this.roleOfSlot(workplace, localSlot),
       shift: shiftForSlot(workplace.staffing, localSlot),

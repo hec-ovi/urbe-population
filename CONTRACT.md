@@ -1,68 +1,69 @@
-# CONTRACT: simulation
+# Simulation 0.9.2
 
-Purpose: statistical NPC population with lazy instantiation: crowds run cheap by type, a specific NPC gets a full deterministic life (home, job, family, routine, name) only on interaction, and stays persistent from then on.
+Computes statistical crowds and persistent NPC identities, assignments and logical schedules during gameplay.
 
-Status: v0.9.1 implemented and tested. Statistical defaults documented in docs/RESEARCH.md. Breaking changes go through the orchestrator.
+## Boundary
 
-## Conventions
-- Time: integer minutes since world epoch (Monday 00:00). Day = floor(t / 1440) % 7, 0 = Monday; minute of day = t % 1440. Routines repeat weekly.
-- Determinism: aggregate outputs (populationStats, crowd) are pure functions of inputs and time, identical for a seed regardless of call order. Instanced outputs depend on the ordered interaction history: same seed and same interaction order, identical population.
-- No LLM, no wall clock, no ambient randomness, no I/O: an embeddable TypeScript library whose host owns the runtime process and persistence boundary.
+Synchronous TypeScript library, imported from `@urbe/simulation`. The host supplies prepared inputs, game time and storage; there is no clock, I/O, ambient randomness or LLM. Creation prepares inputs; Engine owns runtime use. Meters, +Y up, XZ ground, CCW polygons. Time is finite nonnegative minutes since Monday 00:00; weeks repeat. Use whole minutes for crowd trip spans; continuity accepts fractional minutes.
 
-## In
-`createSimulation(input): CitySimulation`
+## Inputs and calls
 
-- `seed: string | number`
-- `blueprint`: [src/schemas/blueprint.ts](src/schemas/blueprint.ts): consumed slice of the atlas CityBlueprint, verified against the v0.14 base shape; a full v0.14 blueprint or v0.15 blueprint with additive hydrology satisfies it. The slice reads districts, street edges with their sidewalk widths, parcels, transit and stats. Hydrology, street class and level, street nodes and crossings and station geometry belong to the host that draws the city.
-- `networks?`: [src/schemas/networks.ts](src/schemas/networks.ts): consumed slice of connections Networks (walk graph with authoritative `path3`, timetabled transit routes). The flat walk path is compatibility data and is never used for an instanced NPC's commute. Absent: aggregate crowd and timetable fallbacks remain available, while an exact continuity query for a scheduled walk fails closed.
-- `interiors?`: [src/schemas/interiors.ts](src/schemas/interiors.ts): parcelId -> NpcSupport (mirror of ../interior/schemas/npc.schema.json). Absent: per-type synthetic role sets.
-- `npcTypes?`: [src/schemas/npc-types.ts](src/schemas/npc-types.ts): consumer projection of naming's NPC type set (categories, grounding, weights and embedded themed name pool). Every naming-produced set fits directly. Simulation's consumer boundary is a compatible superset: host-authored sets may omit or overlap gender buckets. Absent: built-in default set.
-- `namePool?`: explicit override pool ([src/schemas/npc-types.ts](src/schemas/npc-types.ts)). Precedence: this override, else the set's embedded pool, else the built-in default. Names repeat across NPCs by design. Naming output partitions each given name into one `givenByGender` bucket. A host-authored pool may overlap buckets to make one name directly drawable by several genders; a pool without buckets serves every NPC the whole `given` list.
-- `params?`: [src/schemas/params.ts](src/schemas/params.ts): statistical overrides, all defaulted from research.
+`createSimulation(input)` or `new CitySimulation(input)` returns a state owner. [SimulationInput](src/schemas/input.ts) requires `seed` and `blueprint`; optional fields and defaults are in [SKILL.md](SKILL.md).
 
-## Out (CitySimulation)
-- `populationStats(): PopulationStats` ([src/schemas/population.ts](src/schemas/population.ts)): residents, households, employment and NPC type counts per district and tier, plus the `calibrationFactor` that made residents match the blueprint (invariants) and `typeGaps`, the staffed roles the typed set has no admitting category for. Each gap keeps its building `parcelTypes` and may add `nonParcelPlaces` for station and route posts. Consumed by naming.
-- `crowd(timeMin, scope, opts?): CrowdSlice` ([src/schemas/crowd.ts](src/schemas/crowd.ts)): groups carry exact typed counts. City, district, edge, stop and parcel scopes return a deterministic agent sample capped by `opts.maxAgents` (default 64); a radius scope `{ kind: 'radius', x, z, metres }` returns every street and stop agent inside the circle, never capped, so the engine asks for exactly what it renders. Every agent's `crowdId` names one trip (one traversal of a street edge at walking pace, one wait at a stop, one on-duty span at a building or station) and the agent states that span as `trip: { startMin, endMin }` in whole minutes, `endMin` included. The same handle comes back on every poll from `startMin` through `endMin` and instantiates throughout that span. Parcel and station post handles resolve to their exact worker. Street presence follows the researched share of the population in public space by hour (docs/RESEARCH.md), scaled by `params.streetDensity`, and concentrates on the streets whose land use pulls it.
-- `instantiate(handle): NPCInstance` ([src/schemas/npc.ts](src/schemas/npc.ts)): handle is `{ crowdId, timeMin }`, `{ npcId }` (family stubs carry npcIds) or a VendorQuery. Assigns the full life, conditioned on everything already instantiated; persistent from then on, and a crowd handle once instantiated resolves to its person at any time. `appearanceSeed` fixes the visible body, hair, skin and clothing traits established by the originating crowd body. Building employment remains `job: { parcelId, role, shift }`; station and vehicle employment is the separate optional `transitJob: { place, role, shift }`.
-- `getNPC(npcId): NPCInstance`: instanced NPCs only.
-- `getNPCVendor(query: VendorQuery): NPCInstance`: the on-duty worker for a place, type or role at a time; instantiates if needed. Quest layer entry point. `type` and `role` come from different vocabularies: the type is naming's, grounded on the parcel type (a coffee shop staffs baristas), while `job.role` is the interior's own role name for the post when the parcel has an NpcSupport, and a type-derived role otherwise. Query a place by `parcelId` and filter by `role` only against the interior's role table.
-- `findNPCs(query: NPCQuery): NPCInstance[]`: query over instanced NPCs; dead ones excluded unless asked.
-- `behaviorAt(npcId, timeMin): BehaviorState`: state machine snapshot: interior anchor step or walk intent, street edge, transit leg, home. Interior path geometry stays with the host (interior ships findPath).
-- `continuityAt(npcId, timeMin): NPCContinuityState`: [src/schemas/npc-continuity.schema.json](src/schemas/npc-continuity.schema.json). Exact scheduled entry, progress, next destination, semantic animation and, for walking, the ordered Connections edge ids, directions and `path3` geometry. This is the public materialization surface for named, focused and quest NPCs.
-- `interrupt(npcId, timeMin)` / `resume(npcId, timeMin)`: player interaction freezes the exact continuity projection at the interruption time; resume returns control to the current schedule.
-- `applyFlag(npcId, op: FlagOp)`: resign, promote (reassigns job, moves home when tier changes), die (dead NPCs never match vendor or quest queries), custom tags.
-- `reserveNPC(spec: ReservedSpec): NPCInstance`: quest layer pre-instanced NPC with fixed name and type; consumes a real statistical slot. `spec.gender` is optional: absent, an exclusively male or female name bucket supplies it; a neutral, untagged or overlapping name allows either.
-- `serialize(): SimulationSave` / `restoreSimulation(input, save)`: [src/schemas/simulation-save.schema.json](src/schemas/simulation-save.schema.json). Persists identity-producing events, flags, reservations and interruptions; restore with identical inputs reproduces names, body traits and continuity state exactly.
+| Input | Schema | Omission |
+| --- | --- | --- |
+| Blueprint | [CityBlueprint](src/schemas/blueprint.ts) | Required |
+| Networks | [Networks](src/schemas/networks.ts) | Blueprint streets and estimated transit; exact commute projection needs walk geometry |
+| Interiors | [NpcSupport](src/schemas/interiors.ts), keyed by parcel ID | Synthetic building roles |
+| NPC types, name pool | [NPCTypeSet, NamePool](src/schemas/npc-types.ts) | Built-in types; names use explicit pool, embedded pool, then built-in pool |
+| Parameters | [SimulationParams](src/schemas/params.ts) | Statistical defaults; `shiftMix` is accepted but unused |
+
+| Call | Input | Output |
+| --- | --- | --- |
+| `populationStats()` | None | [PopulationStats](src/schemas/population.ts): initial residents, households, adult employment/type counts, district/tier totals, calibration factor and type gaps |
+| `crowd(timeMin, scope, opts?)` | [CrowdScope, CrowdOpts](src/schemas/crowd.ts) | [CrowdSlice](src/schemas/crowd.ts): group counts and render candidates |
+| `instantiate(handle)` | [InstantiateHandle](src/schemas/input.ts): crowd ID/time, NPC ID or vendor query | [NPCInstance](src/schemas/npc.ts) |
+| `getNPC(npcId)` | Established ID | NPCInstance |
+| `getNPCVendor(query)` | [VendorQuery](src/schemas/npc.ts): time, optional parcel/type/role | On-duty allocated NPCInstance |
+| `reserveNPC(spec)` | [ReservedSpec](src/schemas/npc.ts): name/type, optional gender/home district/job parcel/role | Allocated NPCInstance with fixed name |
+| `findNPCs(query)` | [NPCQuery](src/schemas/npc.ts): type/home district/home or job parcel/custom flag/includeDead | Matching established NPCInstance[]; dead excluded by default |
+| `behaviorAt(npcId, timeMin)` | Established ID/time | [BehaviorState](src/schemas/npc.ts): logical place, activity, Interior anchor intent and interruption |
+| `continuityAt(npcId, timeMin)` | Established ID/time | [NPCContinuityState](src/schemas/npc-continuity.schema.json): schedule progress, next destination, animation and available walk path |
+| `interrupt(npcId, timeMin)` / `resume(npcId, timeMin)` | Established ID/time | `void`; freeze projection at the interruption minute or return to the current schedule |
+| `applyFlag(npcId, op)` | [FlagOp](src/schemas/npc.ts): resign/promote/die/custom | `void`; mutate the established record and record the event |
+| `serialize()` | None | [SimulationSave](src/schemas/simulation-save.schema.json), version `"1"` |
+| `restoreSimulation(input, save)` / `sim.restore(save)` | Same compatible prepared inputs and ordered save | New CitySimulation / `void` replay into the instance |
+
+Returned records belong to the simulation; callers must not mutate them. Restore into a fresh instance. The save contains seed and events, not the prepared world or input fingerprints.
+
+## Semantics and limits
+
+- Same seed and prepared inputs produce the same initial counts. Identity and appearance depend on ordered establishment events; replay reproduces them. Statistical baselines do not recompute after flags.
+- Calibration searches for residents within 3% of a positive blueprint population. Coarse housing and the bounded factor search can miss that target. Zero means use the housing estimate. `unemployed` counts all adults without allocated jobs, including those outside the labor force.
+- City/district groups describe street presence; agents sample streets. Edge/stop/parcel groups tally their candidates. `maxAgents` defaults to 64; zero returns counts only. Radius returns all street/stop candidates in its circle and ignores the cap; it excludes building interiors.
+- An anonymous edge/stop handle names one trip with inclusive whole-minute bounds. Edge trips do not continue across edges. Once established, its handle resolves to the same person after the trip. Post handles identify allocated workers. Appearance persists with the identity.
+- Household and initial job assignments use unique statistical slots. Family references can be instantiated. Themed `type` and Interior `job.role` are separate vocabularies. Building employment is `job`; station/route employment is `transitJob`.
+- Staffing uses posts, shift waves and day crews. Filled slots supply vendors; insufficient workers leave vacancies. Reservation uses bounded seeded probes and can miss a rare feasible match.
+- Resign clears employment and rebuilds the routine. Promote assigns an executive schedule at the target or current building; it does not move the home or allocate a destination post. Die excludes the person from vendor/default identity searches. Crowd post counts still reflect initial allocation.
+- Walking projects shortest network paths from authoritative `path3`; absent paths raise `E_NO_MATCH`. Endpoint selection can use the nearest network node. Interior output is anchor intent, not verified local travel. The host owns physical motion and interruption release travel.
+- Initialization stores household prefix counts; cold statistics scan adults and crowd initialization scans job slots. Sampled queries scan relevant edges; candidate enumeration and rare-type identity search can grow with population. No persistent-person cap or accepted timing budget is implemented.
+
+Cross-box changes and open policies: [docs/ISSUES.md](docs/ISSUES.md).
 
 ## Errors
-Closed set, thrown as `SimulationError { code, message, details? }` ([src/schemas/errors.ts](src/schemas/errors.ts)):
-- `E_INVALID_INPUT`: input or a radius scope fails validation; message names the field.
-- `E_UNKNOWN_ID`: npc, parcel, district, edge, stop or line id not found. A street edge whose sidewalk is 0 on both sides is not a walk edge and so not a crowd scope: a highway deck raises this.
-- `E_STALE_HANDLE`: crowdId names a trip that does not cover the given time and was never instantiated.
-- `E_NO_MATCH`: no NPC can satisfy the query or reservation.
-- `E_DEAD`: behavior or flag operation on a dead NPC.
-- `E_CONFLICT`: reservation or flag conflicts with already-instantiated state.
-- `E_TIME`: time outside the supported range.
 
-## Invariants
-- Same seed and inputs: identical populationStats and crowd for any query order.
-- Calibration: the blueprint's `stats.population` is the world's truth. Residents match it within 3 percent by scaling the housing stock estimated from residential floor area (units per parcel) by one factor, published as `calibrationFactor`; occupancy stays at `params.occupancyRate`. The factor is 1 when the blueprint carries no figure (0) or the estimate already agrees; a stock too coarse to land inside the band gets the closest achievable count.
-- Every blueprint district appears in populationStats.perDistrict and is a valid crowd scope, residents or not; districts without residents still carry their working population in crowds.
-- Same seed and same interaction order: identical instanced population.
-- Gender: every instance carries `male` or `female`, fixed for an npc id whether the person is instanced or still a family stub. Singles, lone parents, roommates and kids draw individually against `params.femaleShare` (default 0.51). A couple is one draw per household instead: mixed-gender unless the household falls in `params.sameGenderCoupleShare` (default 0.03, the city rate in docs/RESEARCH.md), so the pair reads the same whichever partner is instantiated first. Paired adults come out near 50/50 by construction, so the whole-population female share sits a few tenths below `femaleShare`. The given name comes from that gender's bucket, falling back to `neutral` and then to the whole pool when a bucket is empty, so a generated name and its gender always agree wherever the pool tags them. A crowd agent carries the same gender: parcel agents read their worker's, street and stop agents draw it from their own stream and instantiate only into a person of that type and gender.
-- Type and post agree: a worker's type comes from a category that admits the post, best first: a vendor role from vendor types, a service or reception post from vendor then worker types, a guard post from authority then worker types, a desk, ward or floor post from worker types, and a platform, fare or driver post from transit types. Grounding narrows before the category widens, so a themed type staffs the parcel it was written for whenever the set holds one. Only a set with no admitting category at all is served from outside those categories, and `populationStats().typeGaps` names the building and non-building places where each gap occurs. Transit types hold no parcel post.
-- Conservation: instanced NPCs never contradict aggregate stats; an assigned home unit, job slot or crowd identity is never reassigned; an instance never changes identity, home or family except through applyFlag.
-- Visible identity: a crowd handle that becomes an NPC carries its `appearanceSeed` into that instance. Recreating the simulation from its save reproduces the same npcId, name, gender, body seed, schedule progress and next destination.
-- Scheduled walking: each commute walk is the deterministic shortest route through Connections' graph, with equal routes settled by edge and node id. Its public path is composed only of the authoritative `path3` values in travel order.
-- Cost: crowd() and instantiate() cost does not grow with total population; full computation only for instanced NPCs. The one exception is a street or stop handle of a type too rare for seeded probes to land on: it falls back to a single pass over the adult index to find a free match. `E_NO_MATCH` means the city has nobody free of that type and gender.
-- Trip identity: a street slot runs back-to-back traversals of its edge (`max(2, round(length / 80))` minutes), a stop slot back-to-back 8 minute waits, staggered so trips start at every minute; whether a trip exists is fixed by the place's count at the trip's own start minute, so a handle never dies before its `trip.endMin` however the street thins. `startMin` and `endMin` are both minutes the body is there: a 2 minute traversal read at 780 states `{ 780, 781 }` and instantiates at 780 and 781. A parcel handle states the on-duty span the same way, ending on the worker's last minute on shift. Trips do not continue across edges: the crowd is a flow per street, and the body that leaves an edge is not the one that appears on the next.
-- Staffing is a rota: posts (people on duty at once) x waves (shifts tiling the open span) x day crews (five days each, no overlap). An open place is staffed and vendor-queryable at every minute of its opening hours on every day it opens, with the same headcount on a Sunday as on a Tuesday, and empty when closed. Interior role [min, max] counts set building posts; 24/7 places get three waves plus security; night-only places staff night shifts. Rail stations carry one platform post per line plus a fare post during service. Each route carries enough drivers for its round trip and headway. Every staffed post maps to an employed resident with a commute.
-- When a city has more job slots than employed residents, slots fill breadth-first: every workplace's opening rota before any workplace's deeper slots, so small venues stay open and large employers carry the shortfall.
-- Street presence: the share of the population out in public space by hour is calibrated to time-use and travel statistics (docs/RESEARCH.md) and multiplied by `params.streetDensity` (default 1, the researched share). Presence is spread across the street edges that have a sidewalk, by land-use pull, so commercial frontage carries more people than a bypass of the same length and a sidewalk-free deck carries none.
-- Standalone: runs against fixture blueprints with no other layer present.
+Closed domain set: [SimulationError](src/schemas/errors.ts), with `code`, `message`, optional `details`. Inputs must satisfy the TypeScript schemas; runtime admission checks are partial.
 
-## Depends on
-- ../atlas/CONTRACT.md (v0.14 base slice; v0.15 hydrology is additive and ignored)
-- ../connections/CONTRACT.md (networks.schema.json: walk + transit slice)
-- ../interior/CONTRACT.md (npc.schema.json)
-- ../naming/CONTRACT.md (NPC type producer shape; its exclusive `givenByGender` partition is accepted directly)
+| Code | Meaning |
+| --- | --- |
+| `E_INVALID_INPUT` | Failed construction, radius or save validation, including seed mismatch |
+| `E_UNKNOWN_ID` | Unknown/unavailable NPC, district, walking edge, stop or workplace parcel |
+| `E_STALE_HANDLE` | Unbound crowd handle has no trip at the supplied time |
+| `E_NO_MATCH` | No queried worker, probed reservation, free matching person or authoritative commute route |
+| `E_DEAD` | Behavior, continuity, interruption or flag operation on a dead person |
+| `E_CONFLICT` | Probed reservation already claimed, or resignation/promotion lacks required employment |
+| `E_TIME` | Time-bearing query receives a negative or non-finite time |
+
+## Dependencies
+
+Data contracts only, no sibling runtime imports: [Atlas](../atlas/CONTRACT.md) blueprint, [Connections](../connections/CONTRACT.md) networks, [Interior](../interior/CONTRACT.md) NPC support, [Naming](../naming/CONTRACT.md) type/name catalogs. Local schemas define the consumed projections; the host checks compatible producer versions. Engine and Quests consume the library; Naming may consume population statistics.

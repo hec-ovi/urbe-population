@@ -32,10 +32,8 @@ export const DOT_COLORS: Record<string, string> = {
   transit_wait: '#facc15',
   working: '#38bdf8',
   shopping: '#c084fc',
-  dining: '#fb923c',
   leisure: '#34d399',
   sleeping: '#64748b',
-  wandering: '#f43f5e',
 };
 
 export const CANVAS_THEME = {
@@ -44,7 +42,6 @@ export const CANVAS_THEME = {
   districtBorder: '#1e2633',
   street: '#252e3d',
   streetWidthPx: 4,
-  streetOutline: '#151a23',
   stop: '#facc15',
   stopSizePx: 6,
   dotFallback: '#00e5ff',
@@ -52,7 +49,6 @@ export const CANVAS_THEME = {
   /** Click tolerance around a dot, in pixels. */
   dotHitPx: 8,
   selectionHighlight: '#00e5ff',
-  hoverHighlight: '#ffffff',
 };
 
 export function colorOf(palette: Record<string, string>, key: string, fallback: string): string {

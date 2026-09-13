@@ -27,7 +27,7 @@ export class CityMapView {
   private readonly surface: CanvasSurface;
   private placed: PlacedDot[] = [];
   private selection: MapSelection;
-  private hoveredEntity: { kind: 'dot' | 'parcel'; id: string; label: string } | undefined;
+  private hoveredEntity: MapSelection;
   private lastDots: CrowdDot[] = [];
 
   constructor(
@@ -81,7 +81,7 @@ export class CityMapView {
       );
 
       if (isSelected) {
-        this.surface.box(parcel.bounds, CANVAS_THEME.selectionHighlight, undefined, 1.5);
+        this.surface.box(parcel.bounds, CANVAS_THEME.selectionHighlight, 1.5);
       }
     }
 
@@ -91,11 +91,10 @@ export class CityMapView {
     }
 
     // 5. Crowd dots
-    const spread = this.surface.worldPerPixel();
     this.placed = dots.map((dot) => ({
       id: dot.id,
       activity: dot.activity,
-      point: [dot.position[0], dot.position[1] + jitterPx(dot.id) * spread] as Point,
+      point: dot.position,
     }));
 
     for (const dot of this.placed) {
@@ -119,12 +118,12 @@ export class CityMapView {
 
   private handleMouseMove(world: Point): void {
     const tolerance = CANVAS_THEME.dotHitPx * this.surface.worldPerPixel();
-    let found: { kind: 'dot' | 'parcel'; id: string; label: string } | undefined;
+    let found: MapSelection;
 
     // Check dots
     for (const dot of this.placed) {
       if (Math.abs(dot.point[0] - world[0]) < tolerance && Math.abs(dot.point[1] - world[1]) < tolerance) {
-        found = { kind: 'dot', id: dot.id, label: `Agent: ${dot.id} (${dot.activity})` };
+        found = { kind: 'dot', id: dot.id };
         break;
       }
     }
@@ -133,7 +132,7 @@ export class CityMapView {
     if (!found) {
       for (const parcel of this.scene.parcels) {
         if (parcel.staffed && contains(parcel, world, tolerance)) {
-          found = { kind: 'parcel', id: parcel.id, label: `Place: ${parcel.id} [${parcel.type}]` };
+          found = { kind: 'parcel', id: parcel.id };
           break;
         }
       }
@@ -178,9 +177,3 @@ function contains(parcel: SceneParcel, [x, y]: Point, tolerance: number): boolea
   return x >= b.minX - tolerance && x <= b.maxX + tolerance && y >= b.minY - tolerance && y <= b.maxY + tolerance;
 }
 
-/** Small stable vertical offset so dots on the same spot stay separable. */
-function jitterPx(id: string): number {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 9;
-  return hash - 4;
-}

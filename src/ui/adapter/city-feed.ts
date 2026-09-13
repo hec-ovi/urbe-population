@@ -48,6 +48,7 @@ class FixtureCityFeed implements CityFeed {
   dots(timeMin: number): CrowdDot[] {
     const out: CrowdDot[] = [];
     for (const edge of this.blueprint.streets.edges) {
+      if (edge.sidewalk.left <= 0 && edge.sidewalk.right <= 0) continue;
       const slice = this.sim.crowd(timeMin, { kind: 'edge', id: edge.id });
       for (const agent of slice.agents) {
         out.push({

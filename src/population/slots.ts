@@ -1,16 +1,8 @@
-/**
- * Fill order over job slots. A city usually has more slots than employed
- * residents, so the order decides which places end up staffed: slots fill
- * breadth-first by rota depth, every workplace's first post before any
- * workplace's second, so an open venue has its opening shift manned before a
- * large employer is fully staffed. Rank <-> slot is a bijection built from
- * prefix sums: O(log n) per lookup, no per-slot state, cost flat in population.
- */
+/** Maps employment ranks to job slots breadth-first across workplaces. */
 
 import { lastAtMost } from '../core/search.js';
 
 export class SlotOrder {
-  readonly totalSlots: number;
   /** Slot index each workplace's slots start at. */
   private readonly offsets: number[] = [];
   /** Workplace indices by slot count ascending, so a level is a suffix of it. */
@@ -27,7 +19,6 @@ export class SlotOrder {
       this.offsets.push(total);
       total += c;
     }
-    this.totalSlots = total;
     this.order = counts.map((_, i) => i).sort((a, b) => counts[a]! - counts[b]! || a - b);
     this.orderPos = new Array<number>(counts.length);
     this.order.forEach((w, pos) => (this.orderPos[w] = pos));

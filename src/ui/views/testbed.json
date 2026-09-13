@@ -1,0 +1,186 @@
+[
+  {
+    "tag": "div",
+    "className": "app-layout",
+    "children": [
+      {
+        "tag": "header",
+        "className": "app-header",
+        "children": [
+          {
+            "tag": "div",
+            "className": "header-brand",
+            "children": [
+              {
+                "tag": "span",
+                "className": "brand-badge",
+                "text": "URBE"
+              },
+              {
+                "tag": "h1",
+                "className": "brand-title",
+                "text": "CROWD SIMULATION TESTBED"
+              },
+              {
+                "tag": "span",
+                "className": "brand-sub",
+                "text": "ATLAS 2D FEED"
+              }
+            ]
+          },
+          {
+            "tag": "div",
+            "className": "header-telemetry",
+            "children": [
+              {
+                "tag": "span",
+                "className": "telemetry-item",
+                "children": [
+                  {
+                    "tag": "i",
+                    "className": "status-indicator"
+                  }
+                ],
+                "text": "SYSTEM: LIVE"
+              },
+              {
+                "tag": "span",
+                "className": "telemetry-item",
+                "text": "SEED:",
+                "children": [
+                  {
+                    "tag": "span",
+                    "className": "telemetry-val",
+                    "text": "testbed"
+                  }
+                ]
+              },
+              {
+                "tag": "span",
+                "className": "telemetry-item",
+                "text": "GRID:",
+                "children": [
+                  {
+                    "tag": "span",
+                    "className": "telemetry-val",
+                    "text": "PARCEL MATRIX"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "main",
+        "className": "stage",
+        "children": [
+          {
+            "tag": "section",
+            "className": "map-column",
+            "children": [
+              {
+                "tag": "div",
+                "className": "controls-panel",
+                "attrs": {
+                  "id": "controls"
+                }
+              },
+              {
+                "tag": "div",
+                "className": "map-viewport",
+                "children": [
+                  {
+                    "tag": "div",
+                    "className": "map-hud-overlay map-hud-tl",
+                    "text": "CANVAS 2D // TOP-DOWN"
+                  },
+                  {
+                    "tag": "div",
+                    "className": "map-hud-overlay map-hud-tr",
+                    "text": "CLICK TO INSTANTIATE"
+                  },
+                  {
+                    "tag": "canvas",
+                    "className": "map",
+                    "attrs": {
+                      "id": "map",
+                      "width": "1000",
+                      "height": "500"
+                    }
+                  }
+                ]
+              },
+              {
+                "tag": "div",
+                "className": "legend-panel",
+                "attrs": {
+                  "id": "legend"
+                }
+              },
+              {
+                "tag": "footer",
+                "className": "map-footer",
+                "children": [
+                  {
+                    "tag": "div",
+                    "className": "shortcuts-row",
+                    "children": [
+                      {
+                        "tag": "span",
+                        "className": "shortcut-tip",
+                        "children": [
+                          {
+                            "tag": "kbd",
+                            "text": "SPACE"
+                          }
+                        ],
+                        "text": "Play / Pause"
+                      },
+                      {
+                        "tag": "span",
+                        "className": "shortcut-tip",
+                        "children": [
+                          {
+                            "tag": "kbd",
+                            "text": "CLICK DOT"
+                          }
+                        ],
+                        "text": "Lazy Instantiate NPC"
+                      },
+                      {
+                        "tag": "span",
+                        "className": "shortcut-tip",
+                        "children": [
+                          {
+                            "tag": "kbd",
+                            "text": "CLICK PARCEL"
+                          }
+                        ],
+                        "text": "Query On-Duty Staff"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "tag": "aside",
+            "className": "inspector-column",
+            "attrs": {
+              "id": "inspector"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "tag": "div",
+    "className": "toast-container",
+    "attrs": {
+      "id": "toast-container"
+    }
+  }
+]

@@ -27,6 +27,15 @@ describe('simulation testbed', () => {
     document.body.replaceChildren();
   });
 
+  it('loads the JSON page and the real standalone fixture through the browser entry', async () => {
+    mountPage();
+    document.body.innerHTML = '<div id="app"></div>';
+    await import('./main.js');
+    expect(screen.getByText('NO NPC SELECTED')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'PLAY' })).toBeTruthy();
+    expect(screen.getByText('INITIALIZED')).toBeTruthy();
+  });
+
   it('renders the feed, advances time, and instantiates a clicked crowd agent', async () => {
     const feed = testFeed();
     mountPage();

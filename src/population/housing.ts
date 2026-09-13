@@ -12,7 +12,6 @@ import type { CityBlueprint, Parcel, WealthTier } from '../schemas/blueprint.js'
 
 export interface ResidentialBlock {
   parcelId: string;
-  units: number;
   unitOffset: number;
 }
 
@@ -55,7 +54,7 @@ export class HousingStock {
       let offset = 0;
       const blocks = g.blocks.map((b) => {
         const units = Math.max(1, Math.round(b.units * factor));
-        const block: ResidentialBlock = { parcelId: b.parcelId, units, unitOffset: offset };
+        const block: ResidentialBlock = { parcelId: b.parcelId, unitOffset: offset };
         offset += units;
         return block;
       });

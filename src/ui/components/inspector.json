@@ -1,0 +1,289 @@
+{
+  "layout": [
+    {
+      "tag": "div",
+      "className": "inspector-main-header",
+      "children": [
+        {
+          "tag": "span",
+          "className": "inspector-title",
+          "text": "ENTITY INSPECTOR // 2D FEED"
+        },
+        {
+          "tag": "span",
+          "className": "badge badge-primary",
+          "text": "LIVE"
+        }
+      ]
+    },
+    {
+      "tag": "div",
+      "className": "inspector-content",
+      "children": [
+        {
+          "tag": "div",
+          "className": "empty-state-box",
+          "when": "empty",
+          "children": [
+            {
+              "tag": "div",
+              "className": "empty-title",
+              "text": "NO NPC SELECTED"
+            },
+            {
+              "tag": "div",
+              "className": "empty-desc",
+              "text": "Select a crowd dot to meet that person, or a workplace to find the worker on duty."
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "className": "error-state-box",
+          "when": "error",
+          "children": [
+            {
+              "tag": "div",
+              "className": "error-tag",
+              "text": "[SIMULATION EXCEPTION]"
+            },
+            {
+              "tag": "div",
+              "className": "error-body",
+              "text": "{{error}}"
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "className": "npc-header",
+          "when": "person",
+          "children": [
+            {
+              "tag": "h2",
+              "className": "npc-name",
+              "text": "{{name}}"
+            },
+            {
+              "tag": "div",
+              "className": "npc-tags-row",
+              "children": [
+                {
+                  "tag": "span",
+                  "className": "badge badge-id",
+                  "text": "#{{npcId}}"
+                },
+                {
+                  "tag": "span",
+                  "className": "badge badge-primary",
+                  "text": "{{type}}"
+                },
+                {
+                  "tag": "span",
+                  "className": "badge badge-muted",
+                  "text": "{{gender}}"
+                }
+              ]
+            },
+            {
+              "tag": "div",
+              "className": "npc-tools-row",
+              "children": [
+                {
+                  "tag": "button",
+                  "className": "btn-tool",
+                  "attrs": {
+                    "type": "button"
+                  },
+                  "text": "Copy ID",
+                  "action": "copyId"
+                },
+                {
+                  "tag": "button",
+                  "className": "btn-tool",
+                  "attrs": {
+                    "type": "button"
+                  },
+                  "text": "JSON",
+                  "action": "copyJson"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "className": "card-block",
+          "each": "sections",
+          "children": [
+            {
+              "tag": "h3",
+              "className": "card-block-title",
+              "text": "{{title}}"
+            },
+            {
+              "tag": "div",
+              "className": "card-block-content",
+              "children": [
+                {
+                  "tag": "div",
+                  "className": "kv-row",
+                  "each": "rows",
+                  "children": [
+                    {
+                      "tag": "span",
+                      "className": "kv-key",
+                      "text": "{{label}}"
+                    },
+                    {
+                      "tag": "span",
+                      "className": "kv-val mono-code",
+                      "text": "{{value}}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "className": "card-block card-behavior",
+          "when": "behavior",
+          "children": [
+            {
+              "tag": "h3",
+              "className": "card-block-title",
+              "text": "CURRENT STATE"
+            },
+            {
+              "tag": "div",
+              "className": "activity-banner",
+              "children": [
+                {
+                  "tag": "span",
+                  "className": "activity-label",
+                  "text": "{{activity}}"
+                },
+                {
+                  "tag": "span",
+                  "className": "badge badge-primary",
+                  "text": "{{mode}}"
+                }
+              ]
+            },
+            {
+              "tag": "div",
+              "className": "kv-row",
+              "each": "behaviorRows",
+              "children": [
+                {
+                  "tag": "span",
+                  "className": "kv-key",
+                  "text": "{{label}}"
+                },
+                {
+                  "tag": "span",
+                  "className": "kv-val mono-code",
+                  "text": "{{value}}"
+                }
+              ]
+            },
+            {
+              "tag": "div",
+              "className": "alert-interrupted",
+              "when": "interrupted",
+              "text": "ROUTINE INTERRUPTED"
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "className": "empty-state-box",
+          "when": "untracked",
+          "text": "NPC state unavailable"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "title": "RESIDENCE",
+      "rows": [
+        {
+          "label": "Home Parcel",
+          "key": "home"
+        },
+        {
+          "label": "Living Unit",
+          "key": "unit"
+        }
+      ]
+    },
+    {
+      "title": "EMPLOYMENT",
+      "rows": [
+        {
+          "label": "Role",
+          "key": "role"
+        },
+        {
+          "label": "Workplace",
+          "key": "workplace"
+        },
+        {
+          "label": "Shift",
+          "key": "shift"
+        },
+        {
+          "label": "Work Days",
+          "key": "days"
+        }
+      ]
+    },
+    {
+      "title": "HOUSEHOLD",
+      "each": "familyRows"
+    },
+    {
+      "title": "TRANSIT COMMUTES",
+      "each": "commuteRows"
+    }
+  ],
+  "behaviorRows": [
+    {
+      "label": "Location",
+      "key": "location"
+    },
+    {
+      "label": "Anchor",
+      "key": "anchor"
+    },
+    {
+      "label": "Animation",
+      "key": "animation"
+    },
+    {
+      "label": "Walk",
+      "key": "walk"
+    }
+  ],
+  "startupError": [
+    {
+      "tag": "div",
+      "className": "error-state-box",
+      "children": [
+        {
+          "tag": "div",
+          "className": "error-tag",
+          "text": "[{{code}}]"
+        },
+        {
+          "tag": "div",
+          "className": "error-body",
+          "text": "{{message}}"
+        }
+      ]
+    }
+  ]
+}

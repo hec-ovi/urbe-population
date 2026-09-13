@@ -1,0 +1,35 @@
+{
+  "play": "PLAY", "pause": "PAUSE", "jumpMinute": 540,
+  "steps": [{"label":"-1h","minutes":-60},{"label":"-15m","minutes":-15},{"label":"+15m","minutes":15},{"label":"+1h","minutes":60}],
+  "speeds": [{"label":"1x","minutes":2},{"label":"5x","minutes":10},{"label":"15x","minutes":30},{"label":"60x","minutes":120}],
+  "days": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+  "layout": [
+    {"tag":"div","className":"time-controls-box","children":[
+      {"tag":"div","className":"controls-row controls-top-row","children":[
+        {"tag":"div","className":"controls-actions","children":[
+          {"tag":"button","className":"control-btn play-btn","attrs":{"type":"button","data-bind":"play"},"action":"toggle"},
+          {"tag":"div","className":"btn-group step-group","children":[
+            {"tag":"button","className":"control-btn","each":"steps","attrs":{"type":"button"},"text":"{{label}}","action":"step"}
+          ]},
+          {"tag":"div","className":"btn-group speed-group","children":[
+            {"tag":"button","className":"control-btn speed-btn","each":"speeds","attrs":{"type":"button","data-speed":"{{minutes}}"},"text":"{{label}}","action":"speed"}
+          ]}
+        ]},
+        {"tag":"div","className":"clock-hud","children":[
+          {"tag":"span","className":"clock-day-pill","attrs":{"data-bind":"day"}},
+          {"tag":"span","className":"clock-time-digits","attrs":{"data-bind":"time"}},
+          {"tag":"span","className":"clock-min-index","attrs":{"data-bind":"minute"}}
+        ]}
+      ]},
+      {"tag":"div","className":"controls-row controls-slider-row","children":[
+        {"tag":"input","className":"control-slider","attrs":{"type":"range","min":"{{min}}","max":"{{max}}","step":1,"value":"{{value}}","aria-label":"Simulation week timeline"},"action":"seek","event":"input"}
+      ]},
+      {"tag":"div","className":"controls-row controls-days-row","children":[
+        {"tag":"span","className":"row-sublabel","text":"JUMP TO DAY:"},
+        {"tag":"div","className":"btn-group day-group","children":[
+          {"tag":"button","className":"control-btn day-btn","each":"days","attrs":{"type":"button","data-day":"{{index}}"},"text":"{{label}}","action":"day"}
+        ]}
+      ]}
+    ]}
+  ]
+}

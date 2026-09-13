@@ -1,60 +1,27 @@
-# CONTRACT: simulation testbed
+# Simulation testbed 0.9.2
 
-Purpose: renders the fixture city, its crowd and one selected NPC at any minute of the week without owning simulation rules.
+Displays a prepared fixture, explicit game time and a selected NPC through the Simulation API.
 
-The testbed is not part of the library package. Nothing in `dist/` imports this folder.
+## Input and output
 
-## In
+[main.ts](main.ts) loads the page from [views/testbed.json](views/testbed.json), then calls `startTestbed(feed?)` in [bootstrap.ts](bootstrap.ts). Omitted feed uses the real fixture adapter. The library package excludes the testbed.
 
-`startTestbed(feed?: CityFeed): TestbedApp | null` in [bootstrap.ts](bootstrap.ts) is the browser entry. An omitted feed uses `createCityFeed("testbed")` from [adapter/city-feed.ts](adapter/city-feed.ts), which adapts the bundled fixture through the root library.
+[CityFeed](adapter/types.ts) supplies time bounds, static scene, crowd positions, NPC summaries and behavior. The adapter is the only UI module importing the library; it queries walking edges only. The host handles clock updates, selection, clipboard actions and simulation calls. Components render supplied data and emit actions.
 
-`CityFeed` in [adapter/types.ts](adapter/types.ts):
+| Component | Input | Events/output |
+| --- | --- | --- |
+| `TimeControls` | Root, bounded preview-clock options | Play/pause, step, day, speed and range changes; `onChange(timeMin)` |
+| `CityMapView` | Canvas, scene, handlers | Crowd drawing; `onDot(id)`, `onPlace(id)` |
+| `InspectorView` | Root, copy actions; NPC/behavior/error data | JSON-defined identity, employment, family, commute and state panels |
+| `Legend` | Root; labels/colors | Parcel color key |
+| Toasts | Message, title | Feedback and close action |
 
-- `timeRange: { min, max }`: inclusive minute bounds.
-- `scene()`: world bounds, districts, streets, staffed parcels, stops and parcel types.
-- `dots(timeMin)`: crowd dots with id, position and activity.
-- `instantiateDot(dotId, timeMin)` and `vendorAt(parcelId, timeMin)`: `NpcSummary` or a code-prefixed `Error`.
-- `behavior(npcId, timeMin)`: `BehaviorSummary`, or `null` when the person cannot be tracked.
-
-The page provides `#controls`, `#map`, `#legend`, `#inspector` and `#toast-container` mount points.
-
-## Components and events
-
-- `TestbedApp(feed)`: wires the page. `start()` renders Monday 09:00.
-- `TimeControls(root, options)`: play, pause, step, speed, day and range controls. It emits `onChange(timeMin)` inside `timeRange`.
-- `CityMapView(canvas, scene, handlers)`: renders the static scene and current dots. A dot click emits `onDot(dotId)`; a staffed parcel click emits `onPlace(parcelId)`.
-- `InspectorView(root)`: renders an NPC, live behavior, or a contained query error.
-- `Legend(root).show(items)`: renders one color entry per parcel type.
-- `ToastManager`: renders startup, query and copy feedback. Close buttons dismiss their own toast.
-- Pressing Space outside an input toggles playback.
-
-## Out
-
-A square-cornered 2D page. Time changes redraw the crowd and the selected NPC's behavior. Selecting a crowd dot instantiates its person; selecting a staffed parcel resolves the worker on duty. Query failures appear in the inspector and a toast.
+[ElementSpec](ui/schema.ts) defines supported JSON nodes: HTML tag, class, text/attribute bindings, children, repeated data, visibility and named click/input actions. [ui/element.ts](ui/element.ts) implements each element once. Labels and panel fields live in component JSON. Page mounts are `controls`, `map`, `legend`, `inspector`, `toast-container`. Space toggles playback outside text inputs. Elements have square corners.
 
 ## Errors
 
-Closed startup display codes:
+`startTestbed` returns the app or `null` and displays `E_MOUNT_UNAVAILABLE` (missing mount), `E_CANVAS_UNAVAILABLE` (no 2D context), or `E_STARTUP` (other startup failure). Query errors appear in the inspector and toast. The adapter preserves root Simulation error codes in messages; behavior misses return `null`.
 
-- `E_MOUNT_UNAVAILABLE`: a required page mount is missing.
-- `E_CANVAS_UNAVAILABLE`: the browser supplies no 2D canvas context.
-- `E_STARTUP`: another startup failure.
+## Dependency and verification
 
-The browser entry catches all three and renders the code and message. Instantiation and vendor queries may display only `E_UNKNOWN_ID`, `E_STALE_HANDLE`, `E_NO_MATCH`, or `E_TIME` from the root contract; event handlers catch them. Behavior lookup failures render as an untracked state through `null`.
-
-## Invariants
-
-- [adapter/city-feed.ts](adapter/city-feed.ts) is the only UI file that imports the simulation library.
-- Views, widgets and components consume only [adapter/types.ts](adapter/types.ts).
-- The UI computes no population, routine, route or crowd position.
-- Every control keeps time inside the feed's inclusive range.
-- All controls, panels, badges and notifications have square corners.
-- [app.test.ts](app.test.ts) exercises controls, canvas selection and every contained error class through rendered DOM with Testing Library and user-event.
-
-## Depends on
-
-- [../../CONTRACT.md](../../CONTRACT.md), through [adapter/city-feed.ts](adapter/city-feed.ts) only.
-
-## Run
-
-`npm run testbed` builds `testbed/` and serves `/testbed/`. `PORT` selects the starting port; the server advances when it is busy.
+[Simulation](../../CONTRACT.md), through [adapter/city-feed.ts](adapter/city-feed.ts). The rendered [contract tests](app.test.ts) exercise the browser entry, controls, selection and error display. `npm run testbed` builds the generated page and serves `/testbed/`; `PORT` defaults to 8080 and advances when occupied. This 2D view does not certify physical travel or rendering performance.

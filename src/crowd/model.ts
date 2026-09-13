@@ -1,20 +1,4 @@
-/**
- * Cheap crowd layer: closed-form typed counts per scope and time, plus
- * pseudo-agents carrying trip handles. City, district, edge, stop and parcel
- * scopes hand back a deterministic sample capped by maxAgents; a radius scope
- * hands back every street and stop agent inside its circle. Street and stop
- * agents are trips (trips.ts): a slot's trip starts at a fixed minute, is
- * typed from the district mix at that minute and lives one period, so the
- * same handle comes back on every poll until the walker leaves the edge.
- * Query cost is independent of population and of edge count when sampling is
- * off (maxAgents 0). District tables are memoized per minute, per-edge
- * counts use a string-free hash and a grid indexes edges by position, so the
- * sampled and radius paths stay flat on large cities.
- * Who is outside and when comes from presence.ts; where they are comes from
- * land-use pull: workers show up around their workplace, errand and leisure
- * trips land in the districts and on the streets that draw people, and the
- * neighbourhood's own traffic stays home.
- */
+/** Computes scoped crowd counts and trip candidates from the initial population. */
 
 import { hash01, mix01, rand, streamKey } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
