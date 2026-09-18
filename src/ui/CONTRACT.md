@@ -4,7 +4,7 @@ Displays a prepared fixture, explicit game time and a selected NPC through the S
 
 ## Input and output
 
-[main.ts](main.ts) loads the page from [views/testbed.json](views/testbed.json), then calls `startTestbed(feed?)` in [bootstrap.ts](bootstrap.ts). Omitted feed uses the real fixture adapter. The library package excludes the testbed.
+[main.ts](main.ts) mounts `#app`, renders [views/testbed.json](views/testbed.json), then calls `startTestbed(feed?)` in [bootstrap.ts](bootstrap.ts). Omitted feed uses the real fixture adapter. The library package excludes the testbed.
 
 [CityFeed](adapter/types.ts) supplies time bounds, static scene, crowd positions, NPC summaries and behavior. The adapter is the only UI module importing the library; it queries walking edges only. The host handles clock updates, selection, clipboard actions and simulation calls. Components render supplied data and emit actions.
 
@@ -16,7 +16,7 @@ Displays a prepared fixture, explicit game time and a selected NPC through the S
 | `Legend` | Root; labels/colors | Parcel color key |
 | Toasts | Message, title | Feedback and close action |
 
-[ElementSpec](ui/schema.ts) defines supported JSON nodes: HTML tag, class, text/attribute bindings, children, repeated data, visibility and named click/input actions. [ui/element.ts](ui/element.ts) implements each element once. Labels and panel fields live in component JSON. Page mounts are `controls`, `map`, `legend`, `inspector`, `toast-container`. Space toggles playback outside text inputs. Elements have square corners.
+[ElementSpec](ui/schema.ts) defines supported JSON nodes: HTML `tag`, `className`, text/attribute bindings, children, `each`, `when` and named click/input `action`s. [ui/element.ts](ui/element.ts) implements each element once. Labels and panel fields live in component JSON. Page mounts after the view renders are `controls`, `map`, `legend`, `inspector`, `toast-container`. Space toggles playback outside text inputs. Elements have square corners.
 
 ## Errors
 

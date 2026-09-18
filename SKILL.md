@@ -36,7 +36,7 @@ The returned `CitySimulation` exposes counts through `populationStats()` and `cr
 
 `instantiate`, `getNPCVendor`, and `reserveNPC` return persistent `NPCInstance` records; `getNPC` and `findNPCs` read established people. `behaviorAt`/`continuityAt` project their schedule. `interrupt`/`resume` freeze/release logical time; `applyFlag` accepts resign, promote, die or a custom tag. `serialize()` returns replay save version `"1"`. Treat returned records as read-only. [CONTRACT.md](CONTRACT.md) links every query, result and save schema and states current limits.
 
-Catch `SimulationError` by code: `E_INVALID_INPUT` (admission), `E_UNKNOWN_ID` (missing entity), `E_STALE_HANDLE` (expired unbound trip), `E_NO_MATCH` (unavailable person/route), `E_DEAD` (unavailable operation), `E_CONFLICT` (claimed allocation or employment conflict), `E_TIME` (invalid query time). Missing exact walk geometry is not a physical position.
+Catch `SimulationError` by code: `E_INVALID_INPUT` (admission), `E_UNKNOWN_ID` (missing entity), `E_STALE_HANDLE` (expired unbound trip), `E_NO_MATCH` (unavailable person or missing walk `path3`), `E_DEAD` (behavior, continuity, interrupt or flag on a dead person), `E_CONFLICT` (claimed allocation or employment conflict), `E_TIME` (negative or non-finite crowd, vendor, behavior or continuity time).
 
 ## Worked example
 

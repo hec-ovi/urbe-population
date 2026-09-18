@@ -29,12 +29,12 @@ Synchronous TypeScript library, imported from `@urbe/simulation`. The host suppl
 | `findNPCs(query)` | [NPCQuery](src/schemas/npc.ts): type/home district/home or job parcel/custom flag/includeDead | Matching established NPCInstance[]; dead excluded by default |
 | `behaviorAt(npcId, timeMin)` | Established ID/time | [BehaviorState](src/schemas/npc.ts): logical place, activity, Interior anchor intent and interruption |
 | `continuityAt(npcId, timeMin)` | Established ID/time | [NPCContinuityState](src/schemas/npc-continuity.schema.json): schedule progress, next destination, animation and available walk path |
-| `interrupt(npcId, timeMin)` / `resume(npcId, timeMin)` | Established ID/time | `void`; freeze projection at the interruption minute or return to the current schedule |
+| `interrupt(npcId, timeMin)` / `resume(npcId, timeMin)` | Established ID/time | `void`; interrupt freezes projection at that minute; resume returns to the schedule at the query time |
 | `applyFlag(npcId, op)` | [FlagOp](src/schemas/npc.ts): resign/promote/die/custom | `void`; mutate the established record and record the event |
 | `serialize()` | None | [SimulationSave](src/schemas/simulation-save.schema.json), version `"1"` |
 | `restoreSimulation(input, save)` / `sim.restore(save)` | Same compatible prepared inputs and ordered save | New CitySimulation / `void` replay into the instance |
 
-Returned records belong to the simulation; callers must not mutate them. Restore into a fresh instance. The save contains seed and events, not the prepared world or input fingerprints.
+Returned records belong to the simulation; callers must not mutate them. Replay a save into a newly constructed instance. The save contains seed and events, not the prepared world or input fingerprints.
 
 ## Semantics and limits
 
@@ -44,7 +44,7 @@ Returned records belong to the simulation; callers must not mutate them. Restore
 - An anonymous edge/stop handle names one trip with inclusive whole-minute bounds. Edge trips do not continue across edges. Once established, its handle resolves to the same person after the trip. Post handles identify allocated workers. Appearance persists with the identity.
 - Household and initial job assignments use unique statistical slots. Family references can be instantiated. Themed `type` and Interior `job.role` are separate vocabularies. Building employment is `job`; station/route employment is `transitJob`.
 - Staffing uses posts, shift waves and day crews. Filled slots supply vendors; insufficient workers leave vacancies. Reservation uses bounded seeded probes and can miss a rare feasible match.
-- Resign clears employment and rebuilds the routine. Promote assigns an executive schedule at the target or current building; it does not move the home or allocate a destination post. Die excludes the person from vendor/default identity searches. Crowd post counts still reflect initial allocation.
+- Resign clears employment and rebuilds the routine. Promote assigns an executive schedule at the target or current building; it does not move the home or allocate a destination post. Die excludes the person from vendor/default identity searches. Crowd post counts keep the initial allocation.
 - Walking projects shortest network paths from authoritative `path3`; absent paths raise `E_NO_MATCH`. Endpoint selection can use the nearest network node. Interior output is anchor intent, not verified local travel. The host owns physical motion and interruption release travel.
 - Initialization stores household prefix counts; cold statistics scan adults and crowd initialization scans job slots. Sampled queries scan relevant edges; candidate enumeration and rare-type identity search can grow with population. No persistent-person cap or accepted timing budget is implemented.
 
@@ -60,9 +60,9 @@ Closed domain set: [SimulationError](src/schemas/errors.ts), with `code`, `messa
 | `E_UNKNOWN_ID` | Unknown/unavailable NPC, district, walking edge, stop or workplace parcel |
 | `E_STALE_HANDLE` | Unbound crowd handle has no trip at the supplied time |
 | `E_NO_MATCH` | No queried worker, probed reservation, free matching person or authoritative commute route |
-| `E_DEAD` | Behavior, continuity, interruption or flag operation on a dead person |
+| `E_DEAD` | Behavior, continuity, interrupt or flag operation on a dead person |
 | `E_CONFLICT` | Probed reservation already claimed, or resignation/promotion lacks required employment |
-| `E_TIME` | Time-bearing query receives a negative or non-finite time |
+| `E_TIME` | `crowd`, vendor, behavior or continuity query receives a negative or non-finite time |
 
 ## Dependencies
 

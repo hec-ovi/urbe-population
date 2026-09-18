@@ -20,4 +20,4 @@ The standalone 2D testbed serves `/testbed/` on localhost:8080, trying the next 
 
 Creation prepares Atlas places, Connections paths, Interior roles and Naming catalogs. Engine creates or restores Simulation when the game loads; Quests resolves its cast through that same API. The package has no runtime dependencies.
 
-Counts are computed from the prepared population; interaction establishes a named person and records replay events. Exact walking continuity needs network `path3`. The 2D fixture is a logical preview, with no physical journey or frame-rate guarantee. [Boundary proposals](docs/ISSUES.md) cover occupancy, capacity, movement and save compatibility.
+Counts are computed from the prepared population; interaction establishes a named person and records replay events. Exact walking continuity needs network `path3`. The 2D fixture is a logical preview, with no physical journey or frame-rate guarantee. [docs/ISSUES.md](docs/ISSUES.md) lists open occupancy, capacity, movement and save questions.

@@ -13,4 +13,4 @@ These are model choices, not a measured census of the generated city. Values liv
 
 [Street presence](../src/crowd/presence.ts) uses authored time-of-day curves informed by NHAPS time-location budgets and NHTS travel patterns. Counts include an allowance for car travel as public presence. `streetDensity` scales those curves. Parcel frontage attracts nearby presence; it is not a pedestrian census or a physical crowd-capacity certificate.
 
-Household and job indices use seeded permutations. Full biographies are allocated on interaction. Household prefix arrays, initial adult type counting and job-slot indexing still grow with population/capacity. [CONTRACT.md](../CONTRACT.md) states the runtime limits; [ISSUES.md](ISSUES.md) tracks public accounting and performance decisions.
+Household and job indices use seeded permutations. Full biographies are allocated on interaction. Household prefix arrays, initial adult type counting and job-slot indexing grow with population. [CONTRACT.md](../CONTRACT.md) states the runtime limits; [ISSUES.md](ISSUES.md) tracks public accounting and performance questions.
