@@ -35,12 +35,15 @@ function typeGaps(world: WorldModel, assignment: AssignmentModel): TypeGap[] {
   return [...gaps.values()].sort((a, b) => a.role.localeCompare(b.role));
 }
 
+/** The statistical part of the report, computed once; the live counts are added per call. */
+export type BaselineStats = Omit<PopulationStats, 'instances' | 'capacity'>;
+
 export function buildStats(
   world: WorldModel,
   demo: Demographics,
   assignment: AssignmentModel,
   calibrationFactor: number,
-): PopulationStats {
+): BaselineStats {
   const perDistrict = new Map<string, DistrictPopulation>();
   const cityTypes: Record<string, number> = {};
   let employed = 0;

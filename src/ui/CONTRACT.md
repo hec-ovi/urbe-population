@@ -1,4 +1,4 @@
-# Simulation testbed 0.9.3
+# Simulation testbed 0.10.0
 
 Displays a prepared fixture, explicit game time and a selected NPC through the Simulation API.
 

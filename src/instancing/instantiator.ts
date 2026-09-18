@@ -10,6 +10,7 @@ import { shiftCoversTime } from '../population/jobs.js';
 import { parseHandle } from '../crowd/handles.js';
 import { adultId, kidId, parseAdultId, parseKidId } from './ids.js';
 import { pickName } from './names.js';
+import { ageOf, traitsOf } from './persona.js';
 import { inferGender, type ResolvedPool } from './name-pool.js';
 import { RoutineBuilder } from './routine.js';
 import { SimulationError } from '../schemas/errors.js';
@@ -188,6 +189,7 @@ export class Instantiator {
 
   private buildAdult(adultIdx: number, nameOverride?: NPCName, appearanceSeed?: number): NPCInstance {
     const npcId = adultId(adultIdx);
+    this.registry.admit(npcId);
     const { groupIdx, h, member } = this.demo.locateAdult(adultIdx);
     const home = this.assignment.homeOf(groupIdx, h);
     const job = this.assignment.jobOfAdult(adultIdx);
@@ -196,6 +198,8 @@ export class Instantiator {
       npcId,
       name: nameOverride ?? this.memberName(groupIdx, h, npcId),
       gender: this.genders.of(npcId),
+      age: ageOf(this.seed, npcId, type.category),
+      traits: traitsOf(this.seed, npcId, type.category),
       appearanceSeed: appearanceSeed ?? rand(this.seed, 'appearance', npcId).int(4294967296),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },
@@ -217,6 +221,7 @@ export class Instantiator {
     }
     const shape = this.demo.householdShape(groupIdx, h);
     if (i >= shape.kids) throw new SimulationError('E_UNKNOWN_ID', `no NPC ${npcId}`);
+    this.registry.admit(npcId);
     const home = this.assignment.homeOf(groupIdx, h);
     const tier = this.world.groups[groupIdx]!.tier;
     const type = this.assignment.residentTypeCandidates(tier)[0]!;
@@ -234,6 +239,8 @@ export class Instantiator {
       npcId,
       name: this.memberName(groupIdx, h, npcId),
       gender: this.genders.of(npcId),
+      age: ageOf(this.seed, npcId, 'child'),
+      traits: traitsOf(this.seed, npcId, 'child'),
       appearanceSeed: rand(this.seed, 'appearance', npcId).int(4294967296),
       type: type.type,
       home: { parcelId: home.parcelId, unit: home.unit },

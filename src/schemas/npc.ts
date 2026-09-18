@@ -19,6 +19,10 @@ export interface NPCInstance {
   npcId: string;
   name: NPCName;
   gender: Gender;
+  /** Whole years, drawn from the plausible range of the person's type. */
+  age: number;
+  /** Two to four plain words drawn from the pool of the person's type. */
+  traits: string[];
   /** Stable seed for body shape, hair, skin and clothing. */
   appearanceSeed: number;
   type: string;
@@ -118,7 +122,7 @@ export interface BehaviorState {
   mode: 'interior' | 'street' | 'transit' | 'home';
   activity: Activity;
   place: PlaceRef;
-  /** Present in interior mode: current routine step or walk intent between anchors. */
+  /** Present whenever the person is inside a building (interior and home modes): current step or walk intent between anchors. */
   interior?: InteriorBehavior;
   interrupted: boolean;
 }

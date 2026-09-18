@@ -16,6 +16,7 @@ export interface ResolvedParams {
   householdMix: { single: number; couple: number; coupleKids: number; singleParent: number; shared: number };
   streetDensity: number;
   defaultHeadwayMin: number;
+  maxInstances: number;
 }
 
 export function resolveParams(params?: SimulationParams): ResolvedParams {
@@ -34,6 +35,7 @@ export function resolveParams(params?: SimulationParams): ResolvedParams {
     },
     streetDensity: params?.streetDensity ?? 1,
     defaultHeadwayMin: params?.defaultHeadwayMin ?? 12,
+    maxInstances: params?.maxInstances ?? 100,
   };
 }
 

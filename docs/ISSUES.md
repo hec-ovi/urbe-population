@@ -4,9 +4,9 @@ Orchestrator coordination. Public inputs, outputs and error codes stay as [CONTR
 
 | Question | Why it is open | Boxes |
 | --- | --- | --- |
-| Persistent capacity | No identity cap. Agree maximum, counted identities, quest/family reservations and refusal mapping. | Simulation, Engine, Quests |
+| Persistent capacity | `params.maxInstances` caps established people at 100 by default and refuses with `E_CAPACITY`. Agree the gameplay maximum, eviction of people nobody watches, and a reserved share for quests. | Simulation, Engine, Quests |
 | Observation continuity | Edge handles end after one traversal. Outdoor fallback matches type/gender without the observed destination. | Simulation, Engine, Quests |
-| Person facts | Records expose home unit, family, employment and routines. Agree age, floor/apartment, traits, biography and who publishes them. | Simulation, Interior, Naming, Quests, Engine |
+| Person facts | Records expose home unit, family, employment, routines, age and traits. Agree floor/apartment, biography and who publishes them. | Simulation, Interior, Naming, Quests, Engine |
 | Post occupancy | Parcel crowd uses initial slots after death or resignation. Need post/shift IDs and a mapping to Interior placements. | Simulation, Interior, Engine, Quests |
 | Staffing feasibility | Worker count can sit below rota demand. `shiftMix` is accepted with no effect. Agree hours, filled capacity and shortages. | Simulation, Atlas, Interior, Engine, Quests |
 | Movement handoff | Routing can pick the nearest network node. Local intent picks the first matching role and has no floor path. | Atlas, Connections, Interior, Simulation, Engine, Quests |

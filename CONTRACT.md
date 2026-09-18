@@ -1,4 +1,4 @@
-# Simulation 0.9.3
+# Simulation 0.10.0
 
 Computes statistical crowds and persistent NPC identities, assignments and logical schedules during gameplay.
 
@@ -20,7 +20,7 @@ Synchronous TypeScript library, imported from `@urbe/simulation`. The host suppl
 
 | Call | Input | Output |
 | --- | --- | --- |
-| `populationStats()` | None | [PopulationStats](src/schemas/population.ts): initial residents, households, adult employment/type counts, district/tier totals, calibration factor and type gaps |
+| `populationStats()` | None | [PopulationStats](src/schemas/population.ts): initial residents, households, adult employment/type counts, district/tier totals, calibration factor, type gaps, and established instances against the capacity |
 | `crowd(timeMin, scope, opts?)` | [CrowdScope, CrowdOpts](src/schemas/crowd.ts) | [CrowdSlice](src/schemas/crowd.ts): group counts and render candidates |
 | `instantiate(handle)` | [InstantiateHandle](src/schemas/input.ts): crowd ID/time, NPC ID or vendor query | [NPCInstance](src/schemas/npc.ts) |
 | `getNPC(npcId)` | Established ID | NPCInstance |
@@ -39,6 +39,8 @@ Returned records belong to the simulation; callers must not mutate them. Replay 
 ## Semantics and limits
 
 - Same seed and prepared inputs produce the same initial counts. Identity and appearance depend on ordered establishment events; replay reproduces them. Statistical baselines do not recompute after flags.
+- Every instance carries an `age` in whole years and two to four plain `traits`, drawn from the ranges and pools of its type's category and fixed by seed and NPC id.
+- `params.maxInstances` (default 100) caps established people. Establishing a new one past it raises `E_CAPACITY`, on replay as well; people already established still resolve. `populationStats` reports `instances` against `capacity`.
 - Calibration searches for residents within 3% of a positive blueprint population. Coarse housing and the bounded factor search can miss that target. Zero means use the housing estimate. `unemployed` counts all adults without allocated jobs, including those outside the labor force.
 - City/district groups describe street presence; agents sample streets. Edge/stop/parcel groups tally their candidates. `maxAgents` defaults to 64; zero returns counts only. Radius returns all street/stop candidates in its circle and ignores the cap; it excludes building interiors.
 - An anonymous edge/stop handle names one trip with inclusive whole-minute bounds. Edge trips do not continue across edges. Once established, its handle resolves to the same person after the trip. Post handles identify allocated workers. Appearance persists with the identity.
@@ -46,7 +48,8 @@ Returned records belong to the simulation; callers must not mutate them. Replay 
 - Staffing uses posts, shift waves and day crews. Filled slots supply vendors; insufficient workers leave vacancies. Reservation uses bounded seeded probes and can miss a rare feasible match.
 - Resign clears employment and rebuilds the routine. Promote assigns an executive schedule at the target or current building; it does not move the home or allocate a destination post. Die excludes the person from vendor/default identity searches. Crowd post counts keep the initial allocation.
 - Walking projects shortest network paths from authoritative `path3`; absent paths raise `E_NO_MATCH`. Endpoint selection can use the nearest network node. Interior output is anchor intent, not verified local travel. The host owns physical motion and interruption release travel.
-- Initialization stores household prefix counts; cold statistics scan adults and crowd initialization scans job slots. Sampled queries scan relevant edges; candidate enumeration and rare-type identity search can grow with population. No persistent-person cap or accepted timing budget is implemented.
+- A person inside a building always carries interior intent. Without Interior support for that parcel (or a routine for the role) it is a placeholder: arrive through `placeholder:<parcelId>/entrance`, stay at `placeholder:<parcelId>/inside`, leave the same way. Home stays and a commute leg that names a building read the same way.
+- Initialization stores household prefix counts; cold statistics scan adults and crowd initialization scans job slots. Sampled queries scan relevant edges; candidate enumeration and rare-type identity search can grow with population. No accepted timing budget is implemented.
 
 Cross-box changes and open policies: [docs/ISSUES.md](docs/ISSUES.md).
 
@@ -62,6 +65,7 @@ Closed domain set: [SimulationError](src/schemas/errors.ts), with `code`, `messa
 | `E_NO_MATCH` | No queried worker, probed reservation, free matching person or authoritative commute route |
 | `E_DEAD` | Behavior, continuity, interrupt or flag operation on a dead person |
 | `E_CONFLICT` | Probed reservation already claimed, or resignation/promotion lacks required employment |
+| `E_CAPACITY` | Establishing a new person past `params.maxInstances` |
 | `E_TIME` | `crowd`, vendor, behavior or continuity query receives a negative or non-finite time |
 
 ## Dependencies

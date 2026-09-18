@@ -13,6 +13,10 @@ export interface PopulationStats {
   households: number;
   employed: number;
   unemployed: number;
+  /** People established so far in this session. */
+  instances: number;
+  /** Most established people this simulation holds, from `params.maxInstances`. */
+  capacity: number;
   /** NPC type -> count, city wide. */
   typeCounts: Record<string, number>;
   /**

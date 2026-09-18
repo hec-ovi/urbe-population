@@ -7,6 +7,7 @@ export type SimulationErrorCode =
   | 'E_NO_MATCH'
   | 'E_DEAD'
   | 'E_CONFLICT'
+  | 'E_CAPACITY'
   | 'E_TIME';
 
 export class SimulationError extends Error {

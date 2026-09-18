@@ -217,6 +217,33 @@ describe('crowds and casting', () => {
     expect(sim.findNPCs({ type: person.type, districtId, parcelId: 'p_cafe' })).toEqual([person]);
     expect(sim.findNPCs({ type: 'absent' })).toEqual([]);
   });
+
+  it('draws a seeded age and two to four traits for every established person', () => {
+    const person = vendor(make());
+    expect(Number.isInteger(person.age)).toBe(true);
+    expect(person.age).toBeGreaterThanOrEqual(18);
+    expect(person.traits.length).toBeGreaterThanOrEqual(2);
+    expect(person.traits.length).toBeLessThanOrEqual(4);
+    expect(new Set(person.traits).size).toBe(person.traits.length);
+    expect(vendor(make())).toEqual(person);
+
+    const families = make({ params: { householdMix: { single: 0, couple: 0, coupleKids: 1, singleParent: 0, shared: 0 } } });
+    const parent = vendor(families);
+    const child = families.instantiate({ npcId: parent.family.find((member) => member.relation === 'child')!.npcId });
+    expect(child.age).toBeLessThanOrEqual(17);
+  });
+
+  it('caps established people and reports the count against the capacity', () => {
+    expect(make().populationStats().capacity).toBe(100);
+    const sim = make({ params: { maxInstances: 1 } });
+    expect(sim.populationStats()).toMatchObject({ instances: 0, capacity: 1 });
+    const person = vendor(sim);
+    expect(sim.populationStats().instances).toBe(1);
+    expect(vendor(sim)).toBe(person);
+    expect(errorCode(() => sim.reserveNPC({ name: { given: 'Wren', family: 'Vale' }, type: 'resident_low' }))).toBe('E_CAPACITY');
+    const agent = sim.crowd(720, { kind: 'edge', id: 'e1' }).agents[0]!;
+    expect(errorCode(() => sim.instantiate({ crowdId: agent.crowdId, timeMin: 720 }))).toBe('E_CAPACITY');
+  });
 });
 
 describe('continuity and persistent effects', () => {
@@ -242,6 +269,22 @@ describe('continuity and persistent effects', () => {
     const worker = vendor(unprepared);
     const onFoot = worker.routine.find((entry) => entry.days.includes(0) && entry.activity === 'commuting' && !entry.transitLeg)!;
     expect(errorCode(() => unprepared.continuityAt(worker.npcId, onFoot.startMin))).toBe('E_NO_MATCH');
+  });
+
+  it('gives a stay in an unfurnished building an arrival, an inside step and an exit', () => {
+    const sim = make({ interiors: {} });
+    const person = sim.instantiate({ parcelId: 'p_cafe', timeMin: TIME });
+    const interiorAt = (minute: number): unknown => sim.behaviorAt(person.npcId, minute).interior;
+    const work = person.routine.find((entry) => entry.days.includes(0) && entry.activity === 'working')!;
+    expect(sim.behaviorAt(person.npcId, work.startMin).mode).toBe('interior');
+    expect(interiorAt(work.startMin)).toEqual({ walk: { fromAnchorId: 'placeholder:p_cafe/entrance', toAnchorId: 'placeholder:p_cafe/inside' } });
+    expect(interiorAt(Math.floor((work.startMin + work.endMin) / 2))).toMatchObject({ at: { anchorId: 'placeholder:p_cafe/inside', animation: 'work_type' } });
+    expect(interiorAt(work.endMin)).toEqual({ walk: { fromAnchorId: 'placeholder:p_cafe/inside', toAnchorId: 'placeholder:p_cafe/entrance' } });
+
+    const sleep = person.routine.find((entry) => entry.days.includes(0) && entry.activity === 'sleeping')!;
+    const night = sim.behaviorAt(person.npcId, Math.floor((sleep.startMin + sleep.endMin) / 2));
+    expect(night.mode).toBe('home');
+    expect(night.interior).toMatchObject({ at: { anchorId: `placeholder:${person.home.parcelId}/inside`, animation: 'sleep' } });
   });
 
   it('replays every event kind, preserves interrupted progress and resumes the current schedule', () => {

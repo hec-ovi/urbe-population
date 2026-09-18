@@ -3,6 +3,7 @@
  * the replayable interaction log that serialize/restore is built on.
  */
 
+import { SimulationError } from '../schemas/errors.js';
 import type { FlagOp, NPCInstance, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 
 export type SaveEvent =
@@ -21,6 +22,9 @@ export interface SimulationSave {
 }
 
 export class Registry {
+  /** Most people this session establishes, from params.maxInstances. */
+  constructor(readonly capacity: number) {}
+
   readonly instances = new Map<string, NPCInstance>();
   /** crowdId -> npcId, so re-instantiating a crowd agent returns the same NPC. */
   readonly crowdBindings = new Map<string, string>();
@@ -33,6 +37,14 @@ export class Registry {
   readonly interrupted = new Map<string, number>();
   private readonly events: SaveEvent[] = [];
   replaying = false;
+
+  /** Refuses a new person once the capacity is full; an established one always passes. */
+  admit(npcId: string): void {
+    if (this.instances.has(npcId) || this.instances.size < this.capacity) return;
+    throw new SimulationError('E_CAPACITY', `the simulation already holds its ${this.capacity} established people`, {
+      capacity: this.capacity,
+    });
+  }
 
   log(e: SaveEvent): void {
     if (!this.replaying) this.events.push(e);

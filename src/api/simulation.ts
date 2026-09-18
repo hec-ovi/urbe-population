@@ -11,7 +11,7 @@ import { HouseholdLedger } from '../population/household.js';
 import { calibrateHousing } from '../population/calibration.js';
 import { Demographics } from '../population/demographics.js';
 import { AssignmentModel } from '../population/assignment.js';
-import { buildStats } from '../population/stats.js';
+import { buildStats, type BaselineStats } from '../population/stats.js';
 import { resolveParams, type ResolvedParams } from '../population/defaults.js';
 import { CrowdModel } from '../crowd/model.js';
 import { GenderResolver } from '../instancing/gender.js';
@@ -47,11 +47,11 @@ export class CitySimulation {
   private readonly demo: Demographics;
   private readonly assignment: AssignmentModel;
   private readonly genders: GenderResolver;
-  private readonly registry = new Registry();
+  private readonly registry: Registry;
   private readonly instantiator: Instantiator;
   private readonly behavior: BehaviorModel;
   private crowdModel: CrowdModel | undefined;
-  private stats: PopulationStats | undefined;
+  private baseline: BaselineStats | undefined;
 
   constructor(private readonly input: SimulationInput) {
     validateInput(input);
@@ -65,13 +65,14 @@ export class CitySimulation {
     this.demo = new Demographics(this.world, ledger, this.params);
     this.assignment = new AssignmentModel(input.seed, this.world, this.demo, this.typeSet, this.params);
     this.genders = new GenderResolver(input.seed, this.demo, this.params);
+    this.registry = new Registry(this.params.maxInstances);
     this.instantiator = new Instantiator(input.seed, this.world, this.demo, this.assignment, resolvePool(namePool), this.registry, this.genders);
     this.behavior = new BehaviorModel(input.seed, this.world, this.registry);
   }
 
   populationStats(): PopulationStats {
-    this.stats ??= buildStats(this.world, this.demo, this.assignment, this.calibrationFactor);
-    return this.stats;
+    this.baseline ??= buildStats(this.world, this.demo, this.assignment, this.calibrationFactor);
+    return { ...this.baseline, instances: this.registry.instances.size, capacity: this.registry.capacity };
   }
 
   crowd(timeMin: number, scope: CrowdScope, opts?: CrowdOpts): CrowdSlice {

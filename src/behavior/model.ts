@@ -7,6 +7,7 @@
 
 import { rand } from '../core/rng.js';
 import { dayOf, minuteOfDay } from '../core/time.js';
+import { placeholderInterior } from './placeholder-interior.js';
 import { SimulationError } from '../schemas/errors.js';
 import type { Registry } from '../instancing/registry.js';
 import type { WorldModel } from '../world/model.js';
@@ -77,7 +78,11 @@ export class BehaviorModel {
   }
 
   private project(inst: NPCInstance, timeMin: number, interrupted: boolean): BehaviorState {
-    const entry = findEntry(inst.routine, timeMin) ?? inst.routine[0]!;
+    const { entry, index } = entryAt(inst.routine, timeMin);
+    const inBuilding = (mode: 'interior' | 'home'): BehaviorState => {
+      const interior = this.insideOf(inst, entry, index, timeMin);
+      return { mode, activity: entry.activity, place: entry.place, interrupted, ...(interior ? { interior } : {}) };
+    };
 
     if (entry.walk?.edges.length) {
       const bounds = entryBounds(entry, timeMin);
@@ -87,7 +92,7 @@ export class BehaviorModel {
     }
 
     if (entry.activity === 'sleeping' || (entry.activity === 'home' && entry.place.kind === 'parcel')) {
-      return { mode: 'home', activity: entry.activity, place: entry.place, interrupted };
+      return inBuilding('home');
     }
     if (entry.transitLeg || entry.place.kind === 'route') {
       return { mode: 'transit', activity: entry.activity, place: entry.place, interrupted };
@@ -95,15 +100,25 @@ export class BehaviorModel {
     if (entry.place.kind === 'edge' || entry.place.kind === 'stop') {
       return { mode: 'street', activity: entry.activity, place: entry.place, interrupted };
     }
-    const state: BehaviorState = { mode: 'interior', activity: entry.activity, place: entry.place, interrupted };
-    if (entry.activity === 'working' && inst.job && entry.place.kind === 'parcel' && entry.place.id === inst.job.parcelId) {
-      const support = this.world.interiors.get(inst.job.parcelId);
-      if (support) {
-        const interior = this.interiorStep(inst, support, entry, timeMin);
-        if (interior) state.interior = interior;
-      }
+    return inBuilding('interior');
+  }
+
+  /**
+   * What the person does inside the building they are in: the Interior role's
+   * routine when the parcel is furnished and the role has one, else the
+   * placeholder arrival, stay and exit at the parcel's access point.
+   */
+  private insideOf(inst: NPCInstance, entry: RoutineEntry, index: number, timeMin: number): BehaviorState['interior'] {
+    if (entry.place.kind !== 'parcel') return undefined;
+    if (entry.activity === 'working' && inst.job?.parcelId === entry.place.id) {
+      const support = this.world.interiors.get(entry.place.id);
+      const step = support && this.interiorStep(inst, support, entry, timeMin);
+      if (step) return step;
     }
-    return state;
+    const routine = inst.routine;
+    const previous = routine[(index - 1 + routine.length) % routine.length]!;
+    const next = routine[(index + 1) % routine.length]!;
+    return placeholderInterior(entry.place.id, entry, { previous, next }, entryBounds(entry, timeMin), timeMin);
   }
 
   interrupt(npcId: string, timeMin: number): void {

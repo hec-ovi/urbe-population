@@ -31,6 +31,8 @@ export interface SimulationParams {
   streetDensity?: number;
   /** Fallback transit headway in minutes when the networks input is absent. */
   defaultHeadwayMin?: number;
+  /** Most established people the simulation holds at once; integer >= 1. */
+  maxInstances?: number;
 }
 
 export interface HouseholdMix {

@@ -3,7 +3,7 @@ name: urbe-simulation
 description: Call the Urbe Simulation library for gameplay crowd counts, persistent people, quest cast, logical continuity and replay saves from prepared city data.
 ---
 
-# Simulation 0.9.3
+# Simulation 0.10.0
 
 Computes statistical crowds and persistent people from prepared city inputs and explicit gameplay time.
 
@@ -27,6 +27,7 @@ Optional [params](src/schemas/params.ts):
 | `shiftMix` | No effect | Accepted compatibility input; staffing determines shifts |
 | `streetDensity` | 1 | Nonnegative multiplier on modeled public presence |
 | `defaultHeadwayMin` | 12 | Estimated transit headway in minutes |
+| `maxInstances` | 100 | Most established people held at once; an integer of 1 or more |
 
 Supply finite values, nonnegative weights with a positive total, and a positive headway. Admission checks are partial. Geometry is meters, +Y up, XZ ground. `timeMin` is minutes since Monday midnight; weeks repeat. Prefer whole minutes for crowd handles; continuity supports fractions.
 
@@ -34,9 +35,9 @@ Supply finite values, nonnegative weights with a positive total, and a positive 
 
 The returned `CitySimulation` exposes counts through `populationStats()` and `crowd(timeMin, scope, {maxAgents:64})`. Scope is city, district, edge, stop, parcel, or `{kind:'radius',x,z,metres}`. ID scopes take `id`; radius is uncapped and excludes interiors. Keep a displayed agent's `crowdId` and inclusive `trip` bounds; pass its exact handle/time to `instantiate`.
 
-`instantiate`, `getNPCVendor`, and `reserveNPC` return persistent `NPCInstance` records; `getNPC` and `findNPCs` read established people. `behaviorAt`/`continuityAt` project their schedule. `interrupt`/`resume` freeze/release logical time; `applyFlag` accepts resign, promote, die or a custom tag. `serialize()` returns replay save version `"1"`. Treat returned records as read-only. [CONTRACT.md](CONTRACT.md) links every query, result and save schema and states current limits.
+`instantiate`, `getNPCVendor`, and `reserveNPC` return persistent `NPCInstance` records, each with a name, gender, age and two to four traits; `getNPC` and `findNPCs` read established people. `populationStats` reports `instances` against `capacity`. `behaviorAt`/`continuityAt` project their schedule. `interrupt`/`resume` freeze/release logical time; `applyFlag` accepts resign, promote, die or a custom tag. `serialize()` returns replay save version `"1"`. Treat returned records as read-only. [CONTRACT.md](CONTRACT.md) links every query, result and save schema and states current limits.
 
-Catch `SimulationError` by code: `E_INVALID_INPUT` (admission), `E_UNKNOWN_ID` (missing entity), `E_STALE_HANDLE` (expired unbound trip), `E_NO_MATCH` (unavailable person or missing walk `path3`), `E_DEAD` (behavior, continuity, interrupt or flag on a dead person), `E_CONFLICT` (claimed allocation or employment conflict), `E_TIME` (negative or non-finite crowd, vendor, behavior or continuity time).
+Catch `SimulationError` by code: `E_INVALID_INPUT` (admission), `E_UNKNOWN_ID` (missing entity), `E_STALE_HANDLE` (expired unbound trip), `E_NO_MATCH` (unavailable person or missing walk `path3`), `E_DEAD` (behavior, continuity, interrupt or flag on a dead person), `E_CONFLICT` (claimed allocation or employment conflict), `E_CAPACITY` (a new person past `maxInstances`), `E_TIME` (negative or non-finite crowd, vendor, behavior or continuity time).
 
 ## Worked example
 
