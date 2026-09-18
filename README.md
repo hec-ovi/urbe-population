@@ -1,4 +1,4 @@
-# @urbe/simulation 0.9.2
+# @urbe/simulation 0.9.3
 
 An embeddable TypeScript API for statistical crowds and persistent NPC identities during gameplay. The host supplies prepared city data, game time and ordered interactions. Simulation performs no I/O, wall-clock updates or LLM calls.
 

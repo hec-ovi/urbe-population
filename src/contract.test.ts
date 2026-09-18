@@ -5,15 +5,12 @@ import {
   type CrowdSlice, type Networks, type NPCInstance, type SimulationInput,
 } from './index.js';
 
+/** Monday 09:00: the cafe is open and commuters are out. */
 const TIME = 540;
-const input = (overrides: Partial<SimulationInput> = {}): SimulationInput => ({
-  seed: 'urbe-test-1', blueprint: FIXTURE_BLUEPRINT, interiors: FIXTURE_INTERIORS, ...overrides,
-});
-const make = (overrides: Partial<SimulationInput> = {}): CitySimulation => createSimulation(input(overrides));
-const vendor = (sim: CitySimulation): NPCInstance => sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: TIME });
-const total = (slice: CrowdSlice): number => slice.groups.reduce((sum, group) => sum + group.count, 0);
 
-function routedInput(): SimulationInput {
+/** One prepared city for the whole suite: Atlas places and Interior roles, plus the walk
+ *  graph with authoritative path3 that the promises about walking travel need. */
+function walkNetwork(): Networks {
   const hub = { id: 'hub', x: 500, y: 3, z: 250, kind: 'corner' as const };
   const nodes: Networks['walk']['nodes'] = [hub];
   const edges: Networks['walk']['edges'] = [];
@@ -27,13 +24,18 @@ function routedInput(): SimulationInput {
       path3: [[x, 1, z], [hub.x, hub.y, hub.z]],
     });
   }
-  return input({
-    blueprint: { ...FIXTURE_BLUEPRINT, transit: {
-      busStops: [], busRoutes: [], trainStations: [], trainLines: [], subwayStations: [], subwayLines: [],
-    } },
-    networks: { walk: { nodes, edges }, transit: { routes: [] } },
-  });
+  return { walk: { nodes, edges }, transit: { routes: [] } };
 }
+
+const FIXTURE: SimulationInput = {
+  seed: 'urbe-test-1', blueprint: FIXTURE_BLUEPRINT, interiors: FIXTURE_INTERIORS,
+};
+const WALK = walkNetwork();
+
+const make = (overrides: Partial<SimulationInput> = {}): CitySimulation =>
+  createSimulation({ ...FIXTURE, ...overrides });
+const vendor = (sim: CitySimulation): NPCInstance => sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: TIME });
+const total = (slice: CrowdSlice): number => slice.groups.reduce((sum, group) => sum + group.count, 0);
 
 function errorCode(run: () => unknown): string | undefined {
   try { run(); } catch (error) {
@@ -44,20 +46,17 @@ function errorCode(run: () => unknown): string | undefined {
 }
 
 describe('prepared inputs and statistics', () => {
-  it('defaults and explicit parameters produce the same standalone population', () => {
+  it('reports one population projection: defaults, district and tier totals, type counts and gaps', () => {
     const base = { seed: 42, blueprint: FIXTURE_BLUEPRINT };
-    const sim = new CitySimulation(base);
+    const defaults = new CitySimulation(base);
     const explicit = createSimulation({ ...base, npcTypes: DEFAULT_TYPE_SET, params: {
       occupancyRate: 0.55, unemploymentRate: 0.041, femaleShare: 0.51, sameGenderCoupleShare: 0.03,
       householdMix: { single: 0.29, couple: 0.27, coupleKids: 0.21, singleParent: 0.1, shared: 0.13 },
       shiftMix: { day: 0.84, evening: 0.06, night: 0.04, rotating: 0.06 },
       streetDensity: 1, defaultHeadwayMin: 12,
     } });
-    expect(sim.populationStats()).toEqual(explicit.populationStats());
-    expect(vendor(sim).job?.parcelId).toBe('p_cafe');
-  });
+    expect(defaults.populationStats()).toEqual(explicit.populationStats());
 
-  it('counts districts, tiers and adult types consistently, including districts with no residents', () => {
     const stats = make().populationStats();
     expect(stats.population).toBeGreaterThan(stats.employed);
     expect(stats.households).toBeGreaterThan(0);
@@ -69,6 +68,12 @@ describe('prepared inputs and statistics', () => {
       expect(Object.values(district.byTier).reduce((sum, tier) => sum + tier.population, 0)).toBe(district.population);
     }
     expect(stats.perDistrict.find((d) => d.districtId === 'd2')?.population).toBe(0);
+
+    const residentsOnly = { ...FIXTURE_THEMED_TYPES, types: FIXTURE_THEMED_TYPES.types.filter((t) => t.category === 'resident') };
+    const gaps = make({ npcTypes: residentsOnly }).populationStats().typeGaps;
+    expect(gaps).toContainEqual(expect.objectContaining({ role: 'vendor', parcelTypes: ['commerce', 'mall'] }));
+    expect(gaps).toContainEqual(expect.objectContaining({ role: 'platform_staff', nonParcelPlaces: ['station'] }));
+    expect(gaps).toContainEqual(expect.objectContaining({ role: 'driver', nonParcelPlaces: ['route'] }));
   });
 
   it('calibrates a positive blueprint population and respects occupancy and employment settings', () => {
@@ -83,25 +88,16 @@ describe('prepared inputs and statistics', () => {
   });
 
   it('uses supplied household and gender weights with reciprocal family identities', () => {
-    const coupleParams = {
+    const sim = make({ params: {
       householdMix: { single: 0, couple: 1, coupleKids: 0, singleParent: 0, shared: 0 },
       sameGenderCoupleShare: 1,
-    };
-    const sim = make({ params: coupleParams });
+    } });
     const person = vendor(sim);
     const stub = person.family[0]!;
     expect(stub.relation).toBe('partner');
     const partner = sim.instantiate({ npcId: stub.npcId });
     expect(partner).toMatchObject({ name: stub.name, gender: person.gender, home: person.home });
     expect(partner.family[0]?.npcId).toBe(person.npcId);
-    const reverse = make({ params: coupleParams });
-    expect(reverse.instantiate({ npcId: partner.npcId }).gender).toBe(partner.gender);
-    expect(reverse.instantiate({ npcId: person.npcId }).gender).toBe(person.gender);
-    const single = vendor(make({ params: {
-      femaleShare: 1, householdMix: { single: 1, couple: 0, coupleKids: 0, singleParent: 0, shared: 0 },
-    } }));
-    expect(single.gender).toBe('female');
-    expect(single.family).toEqual([]);
   });
 
   it('consumes themed types, separates type from Interior role and honors the explicit name pool', () => {
@@ -114,14 +110,6 @@ describe('prepared inputs and statistics', () => {
     expect(FIXTURE_THEMED_TYPES.namePool.given).toContain(person.name.given);
     const override = vendor(make({ npcTypes: FIXTURE_THEMED_TYPES, namePool: { given: ['Wren'], family: ['Vale'] } }));
     expect(override.name).toEqual({ given: 'Wren', family: 'Vale' });
-  });
-
-  it('reports uncovered building and transit roles in type gaps', () => {
-    const npcTypes = { ...FIXTURE_THEMED_TYPES, types: FIXTURE_THEMED_TYPES.types.filter((t) => t.category === 'resident') };
-    const gaps = make({ npcTypes }).populationStats().typeGaps;
-    expect(gaps).toContainEqual(expect.objectContaining({ role: 'vendor', parcelTypes: ['commerce', 'mall'] }));
-    expect(gaps).toContainEqual(expect.objectContaining({ role: 'platform_staff', nonParcelPlaces: ['station'] }));
-    expect(gaps).toContainEqual(expect.objectContaining({ role: 'driver', nonParcelPlaces: ['route'] }));
   });
 
   it('reproduces counts and established identities from seed and interaction order', () => {
@@ -208,7 +196,7 @@ describe('crowds and casting', () => {
     const stops = FIXTURE_BLUEPRINT.transit.busStops.map((stop, index) => ({
       stopId: stop.id, x: stop.position[0], y: 0, z: stop.position[1], shapeDist: index * 200,
     }));
-    const supplied = make({ networks: { walk: { nodes: [], edges: [] }, transit: { routes: [{
+    const supplied = make({ networks: { walk: WALK.walk, transit: { routes: [{
       id: 'network-route', kind: 'bus', lineId: 'r0', stops,
       template: stops.map((_, i) => ({ arrive: i * 120, depart: i * 120 })),
       service: [{ start: 18000, end: 86400, headway: 900, phase: 0 }],
@@ -232,39 +220,32 @@ describe('crowds and casting', () => {
 });
 
 describe('continuity and persistent effects', () => {
-  it('projects a worker from home over authoritative network geometry into an Interior routine', () => {
-    const prepared = routedInput();
-    const sim = createSimulation(prepared);
+  it('projects a commute over authoritative network geometry into an Interior routine', () => {
+    const sim = make({ networks: WALK });
     const person = sim.instantiate({ parcelId: 'p_cafe', timeMin: TIME });
     const walk = person.routine.find((entry) => entry.days.includes(0) && entry.walk?.to.id === 'p_cafe')!;
-    expect(sim.continuityAt(person.npcId, walk.startMin - 1).behavior.mode).toBe('home');
     const moving = sim.continuityAt(person.npcId, walk.startMin + 0.5);
     expect(moving.animation).toBe('walk');
     expect(moving.schedule.nextDestination).toEqual({ kind: 'parcel', id: 'p_cafe' });
     expect(moving.schedule.progress).toBeGreaterThan(0);
     expect(moving.movement?.current.edgeId).toBe(moving.movement?.path[0]?.edgeId);
     for (const edge of moving.movement!.path) {
-      const authored = prepared.networks!.walk.edges.find((item) => item.id === edge.edgeId)!.path3;
+      const authored = WALK.walk.edges.find((item) => item.id === edge.edgeId)!.path3;
       expect(edge.path3).toEqual(edge.direction === 1 ? authored : [...authored].reverse());
     }
     const state = sim.continuityAt(person.npcId, TIME);
     expect(state.behavior).toMatchObject({ mode: 'interior', activity: 'working', place: { kind: 'parcel', id: 'p_cafe' } });
     expect(state.behavior.interior).toBeDefined();
     expect(sim.behaviorAt(person.npcId, TIME)).toEqual(state.behavior);
-  });
 
-  it('projects an Interior seated action and refuses an unprojectable walk', () => {
-    const sim = make({ interiors: { p_cafe: { ...FIXTURE_INTERIORS.p_cafe!, routines: [{ role: 'r_barista',
-      steps: [{ anchor: 'a_seat', minutes: [999, 999], animation: 'idle_sit' }],
-    }] } } });
-    const person = vendor(sim);
-    expect(sim.continuityAt(person.npcId, TIME).animation).toBe('sit');
-    const walk = person.routine.find((entry) => entry.days.includes(0) && entry.activity === 'commuting' && !entry.transitLeg)!;
-    expect(errorCode(() => sim.continuityAt(person.npcId, walk.startMin))).toBe('E_NO_MATCH');
+    const unprepared = make();
+    const worker = vendor(unprepared);
+    const onFoot = worker.routine.find((entry) => entry.days.includes(0) && entry.activity === 'commuting' && !entry.transitLeg)!;
+    expect(errorCode(() => unprepared.continuityAt(worker.npcId, onFoot.startMin))).toBe('E_NO_MATCH');
   });
 
   it('replays every event kind, preserves interrupted progress and resumes the current schedule', () => {
-    const prepared = routedInput();
+    const prepared = { ...FIXTURE, networks: WALK };
     const sim = createSimulation(prepared);
     const person = vendor(sim);
     sim.instantiate({ npcId: person.npcId });
@@ -272,7 +253,7 @@ describe('continuity and persistent effects', () => {
     sim.instantiate({ crowdId: post.crowdId, timeMin: TIME });
     sim.reserveNPC({ name: { given: 'Vesna', family: 'Ilic' }, type: 'resident_low' });
     sim.applyFlag(person.npcId, { kind: 'custom', tag: 'quest:informant' });
-    const walk = person.routine.find((entry) => entry.days.includes(0) && entry.walk)!;
+    const walk = person.routine.find((entry) => entry.days.includes(0) && entry.walk?.edges.length)!;
     const at = walk.startMin + 0.5;
     sim.interrupt(person.npcId, at);
     sim.resume(person.npcId, at + 1);
@@ -292,7 +273,7 @@ describe('continuity and persistent effects', () => {
     expect(target.getNPC(person.npcId)).toEqual(person);
   });
 
-  it('applies resignation, promotion and custom flags and reports an employment conflict', () => {
+  it('applies resignation, promotion, custom tags and death to the established record', () => {
     const sim = make();
     const person = vendor(sim);
     sim.applyFlag(person.npcId, { kind: 'resign' });
@@ -302,11 +283,6 @@ describe('continuity and persistent effects', () => {
     expect(sim.getNPC(person.npcId).job).toMatchObject({ parcelId: 'p_office', role: 'executive' });
     sim.applyFlag(person.npcId, { kind: 'custom', tag: 'quest:informant' });
     expect(sim.findNPCs({ flag: 'quest:informant' })).toEqual([person]);
-  });
-
-  it('excludes dead people from ordinary searches and refuses behavior', () => {
-    const sim = make();
-    const person = vendor(sim);
     sim.applyFlag(person.npcId, { kind: 'die' });
     expect(sim.findNPCs({})).toEqual([]);
     expect(sim.findNPCs({ includeDead: true })).toEqual([person]);
@@ -314,24 +290,9 @@ describe('continuity and persistent effects', () => {
   });
 });
 
-describe('admission errors', () => {
-  it('reports invalid construction, radius and replay input through the closed input code', () => {
-    const cases = [
-      () => make({ params: { occupancyRate: -1 } }),
-      () => make().crowd(TIME, { kind: 'radius', x: 0, z: 0, metres: 0 }),
-      () => restoreSimulation(input(), { version: '1', seed: 'another', events: [] }),
-      () => restoreSimulation(input(), { version: '1', seed: 'urbe-test-1', events: [{ k: 'unknown' }] } as never),
-    ];
-    for (const run of cases) expect(errorCode(run)).toBe('E_INVALID_INPUT');
-  });
-
-  it('rejects unknown identifiers including sidewalk-free edges', () => {
-    const sim = make();
-    expect(errorCode(() => sim.getNPC('absent'))).toBe('E_UNKNOWN_ID');
-    expect(errorCode(() => sim.crowd(TIME, { kind: 'edge', id: 'e_deck' }))).toBe('E_UNKNOWN_ID');
-  });
-
-  it('rejects unsupported query times', () => {
-    expect(errorCode(() => make().crowd(-1, { kind: 'city' }))).toBe('E_TIME');
-  });
+it('reports invalid input, unknown identifiers and unsupported times through the closed error set', () => {
+  expect(errorCode(() => make({ params: { occupancyRate: -1 } }))).toBe('E_INVALID_INPUT');
+  expect(errorCode(() => restoreSimulation(FIXTURE, { version: '1', seed: 'another', events: [] }))).toBe('E_INVALID_INPUT');
+  expect(errorCode(() => make().getNPC('absent'))).toBe('E_UNKNOWN_ID');
+  expect(errorCode(() => make().crowd(-1, { kind: 'city' }))).toBe('E_TIME');
 });

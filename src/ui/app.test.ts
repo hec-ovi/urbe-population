@@ -36,14 +36,13 @@ describe('simulation testbed', () => {
     expect(screen.getByText('INITIALIZED')).toBeTruthy();
   });
 
-  it('renders the feed, advances time, and instantiates a clicked crowd agent', async () => {
+  it('renders the feed, advances time and resolves a clicked agent and a clicked staffed parcel', async () => {
     const feed = testFeed();
     mountPage();
     const { startTestbed } = await import('./bootstrap.js');
     const user = userEvent.setup();
 
     expect(startTestbed(feed)).not.toBeNull();
-
     expect(screen.getByText('NO NPC SELECTED')).toBeTruthy();
     expect(feed.dots).toHaveBeenLastCalledWith(540);
 
@@ -56,9 +55,15 @@ describe('simulation testbed', () => {
     expect(screen.getByText('Ada Vale')).toBeTruthy();
     expect(screen.getByText('NPC INSTANCED')).toBeTruthy();
     expect(screen.getByText('WORK')).toBeTruthy();
+
+    vi.mocked(feed.dots).mockReturnValue([]);
+    await user.click(screen.getByRole('button', { name: '+1h' }));
+    await clickCenter(user);
+    expect(feed.vendorAt).toHaveBeenCalledWith('p-cafe', 660);
+    expect(screen.getByText('VENDOR FOUND')).toBeTruthy();
   });
 
-  it('contains a crowd-query failure in the inspector and toast', async () => {
+  it('contains a query failure in the inspector and toast', async () => {
     const feed = testFeed();
     vi.mocked(feed.instantiateDot).mockImplementation(() => {
       throw new Error('E_STALE_HANDLE: crowd trip ended');
@@ -75,52 +80,27 @@ describe('simulation testbed', () => {
     expect(screen.getByText('QUERY FAILED')).toBeTruthy();
   });
 
-  it('resolves a clicked staffed parcel through the vendor entry', async () => {
-    const feed = testFeed();
-    vi.mocked(feed.dots).mockReturnValue([]);
-    mountPage();
+  it('reports every startup failure as its own code and starts nothing', async () => {
     const { startTestbed } = await import('./bootstrap.js');
-    const user = userEvent.setup();
 
-    expect(startTestbed(feed)).not.toBeNull();
-    await clickCenter(user);
-
-    expect(feed.vendorAt).toHaveBeenCalledWith('p-cafe', 540);
-    expect(screen.getByText('Ada Vale')).toBeTruthy();
-    expect(screen.getByText('VENDOR FOUND')).toBeTruthy();
-  });
-
-  it('contains missing page mounts as E_MOUNT_UNAVAILABLE', async () => {
-    const feed = testFeed();
     mountPage();
     document.getElementById('legend')?.remove();
-    const { startTestbed } = await import('./bootstrap.js');
-
-    expect(startTestbed(feed)).toBeNull();
+    expect(startTestbed(testFeed())).toBeNull();
     expect(screen.getByText('[E_MOUNT_UNAVAILABLE]')).toBeTruthy();
     expect(screen.getByText('missing #legend in index.html')).toBeTruthy();
-  });
 
-  it('contains missing canvas support as E_CANVAS_UNAVAILABLE', async () => {
-    const feed = testFeed();
     mountPage();
     vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(null);
-    const { startTestbed } = await import('./bootstrap.js');
-
-    expect(startTestbed(feed)).toBeNull();
+    expect(startTestbed(testFeed())).toBeNull();
     expect(screen.getByText('[E_CANVAS_UNAVAILABLE]')).toBeTruthy();
     expect(screen.getByText('2D canvas context unavailable')).toBeTruthy();
-  });
 
-  it('contains an unexpected boot failure as E_STARTUP', async () => {
-    const feed = testFeed();
-    vi.mocked(feed.scene).mockImplementation(() => {
+    mountPage();
+    const broken = testFeed();
+    vi.mocked(broken.scene).mockImplementation(() => {
       throw new Error('fixture unavailable');
     });
-    mountPage();
-    const { startTestbed } = await import('./bootstrap.js');
-
-    expect(startTestbed(feed)).toBeNull();
+    expect(startTestbed(broken)).toBeNull();
     expect(screen.getByText('[E_STARTUP]')).toBeTruthy();
     expect(screen.getByText('fixture unavailable')).toBeTruthy();
   });

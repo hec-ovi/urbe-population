@@ -3,7 +3,7 @@ name: urbe-simulation
 description: Call the Urbe Simulation library for gameplay crowd counts, persistent people, quest cast, logical continuity and replay saves from prepared city data.
 ---
 
-# Simulation 0.9.2
+# Simulation 0.9.3
 
 Computes statistical crowds and persistent people from prepared city inputs and explicit gameplay time.
 

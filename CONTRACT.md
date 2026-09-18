@@ -1,4 +1,4 @@
-# Simulation 0.9.2
+# Simulation 0.9.3
 
 Computes statistical crowds and persistent NPC identities, assignments and logical schedules during gameplay.
 
