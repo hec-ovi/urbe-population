@@ -8,6 +8,7 @@ import { polygonArea, polylineLength, midpoint, pointInPolygon, dist2 } from './
 import { WalkRoutes } from './walk-routes.js';
 import { AttractionField } from './attraction.js';
 import { staffTransit, staffWorkplace, type WorkplaceStaffing } from '../population/jobs.js';
+import { openingOf, seatsOf, type VenueModel } from '../population/venues.js';
 import type { ResolvedParams } from '../population/defaults.js';
 import type { Group } from '../population/housing.js';
 import type { CityBlueprint, District, Parcel, Vec2, WealthTier } from '../schemas/blueprint.js';
@@ -23,8 +24,10 @@ export interface Workplace {
   parcelType?: Parcel['type'];
   tier: WealthTier;
   staffing: WorkplaceStaffing;
-  /** Role of each post, in post order; absent where the parcel and its interior name the posts. */
-  postRoles?: string[];
+  /** What kind of place it is; absent at a transit post. */
+  venue?: VenueModel;
+  /** Seats its guests can take; zero where it holds no guests. */
+  seats: number;
   slotOffset: number;
 }
 
@@ -105,7 +108,11 @@ export class WorldModel {
   private buildWorkplaces(parcels: Parcel[]): number {
     let offset = 0;
     for (const p of parcels) {
-      const staffing = staffWorkplace(this.seed, p, polygonArea(p.footprint), this.interiors.get(p.id));
+      const support = this.interiors.get(p.id);
+      const floorArea = polygonArea(p.footprint);
+      const venue = openingOf(p.type, support)?.venue;
+      const seats = venue === 'service' ? seatsOf(p.type, floorArea, support) : 0;
+      const staffing = staffWorkplace(this.seed, p, floorArea, seats, support);
       if (staffing.slotCount === 0) continue;
       const wp: Workplace = {
         place: { kind: 'parcel', id: p.id },
@@ -113,6 +120,8 @@ export class WorldModel {
         parcelType: p.type,
         tier: p.tier,
         staffing,
+        ...(venue ? { venue } : {}),
+        seats,
         slotOffset: offset,
       };
       this.workplaces.push(wp);
@@ -142,7 +151,7 @@ export class WorldModel {
       const lines = railLines.get(stopId)!;
       const postRoles = [...lines.map(() => 'platform_staff'), 'fare_agent'];
       const staffing = staffTransit(
-        postRoles.length,
+        postRoles,
         Math.min(...lines.map((l) => l.serviceStartMin)),
         Math.max(...lines.map((l) => l.serviceEndMin)),
       );
@@ -152,7 +161,7 @@ export class WorldModel {
         districtId: this.districtAt(this.stopsById.get(stopId)!.position),
         tier: this.districtsById.get(this.districtAt(this.stopsById.get(stopId)!.position))!.tier,
         staffing,
-        postRoles,
+        seats: 0,
         slotOffset: offset,
       };
       this.workplaces.push(wp);
@@ -160,7 +169,8 @@ export class WorldModel {
       offset += staffing.slotCount;
     }
     for (const route of this.routes) {
-      const staffing = staffTransit(driversOnDuty(route), route.serviceStartMin, route.serviceEndMin);
+      const drivers = new Array<string>(driversOnDuty(route)).fill('driver');
+      const staffing = staffTransit(drivers, route.serviceStartMin, route.serviceEndMin);
       if (staffing.slotCount === 0) continue;
       const first = this.stopsById.get(route.stopIds[0]!)!;
       this.workplaces.push({
@@ -168,7 +178,7 @@ export class WorldModel {
         districtId: this.districtAt(first.position),
         tier: this.districtsById.get(this.districtAt(first.position))!.tier,
         staffing,
-        postRoles: Array.from({ length: driversOnDuty(route) }, () => 'driver'),
+        seats: 0,
         slotOffset: offset,
       });
       offset += staffing.slotCount;

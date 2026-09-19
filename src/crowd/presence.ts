@@ -57,6 +57,23 @@ export const STREET_REGULAR: Curve = [
 /** Share of the people around a stop who are waiting for a vehicle rather than passing. */
 export const TRANSIT_WAIT_SHARE = 0.05;
 
+/**
+ * Share of a venue's seats taken by guests. Two shapes: a table venue fills
+ * at lunch and again, harder and later, at dinner; a counter venue holds one
+ * daytime plateau. Both fall to nothing while the venue is closed, which the
+ * opening hours apply on top.
+ */
+export const TABLE_OCCUPANCY: Curve = [
+  [0, 0.08], [300, 0.02], [420, 0.12], [600, 0.2], [720, 0.55], [780, 0.6], [840, 0.35],
+  [960, 0.3], [1080, 0.5], [1140, 0.7], [1200, 0.75], [1260, 0.6], [1320, 0.35], [1439, 0.15],
+];
+
+/** Customers at a counter or in a lobby: open, busy midday, quiet at the edges. */
+export const COUNTER_OCCUPANCY: Curve = [
+  [0, 0.05], [420, 0.15], [540, 0.35], [660, 0.45], [780, 0.5], [900, 0.4], [1020, 0.45],
+  [1140, 0.35], [1260, 0.2], [1380, 0.08], [1439, 0.05],
+];
+
 export function curveAt(curve: Curve, m: number): number {
   let prev = curve[0]!;
   for (const point of curve) {

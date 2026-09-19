@@ -3,7 +3,7 @@ name: urbe-simulation
 description: Call the Urbe Simulation library for gameplay crowd counts, persistent people, quest cast, logical continuity and replay saves from prepared city data.
 ---
 
-# Simulation 0.10.0
+# Simulation 0.10.1
 
 Computes statistical crowds and persistent people from prepared city inputs and explicit gameplay time.
 
@@ -33,7 +33,7 @@ Supply finite values, nonnegative weights with a positive total, and a positive 
 
 ## Response and errors
 
-The returned `CitySimulation` exposes counts through `populationStats()` and `crowd(timeMin, scope, {maxAgents:64})`. Scope is city, district, edge, stop, parcel, or `{kind:'radius',x,z,metres}`. ID scopes take `id`; radius is uncapped and excludes interiors. Keep a displayed agent's `crowdId` and inclusive `trip` bounds; pass its exact handle/time to `instantiate`.
+The returned `CitySimulation` exposes counts through `populationStats()` and `crowd(timeMin, scope, {maxAgents:64})`. Scope is city, district, edge, stop, parcel, or `{kind:'radius',x,z,metres}`. A parcel returns the posts on duty at that minute plus the guests inside an open venue. ID scopes take `id`; radius is uncapped and excludes interiors. Keep a displayed agent's `crowdId` and inclusive `trip` bounds; pass its exact handle/time to `instantiate`.
 
 `instantiate`, `getNPCVendor`, and `reserveNPC` return persistent `NPCInstance` records, each with a name, gender, age and two to four traits; `getNPC` and `findNPCs` read established people. `populationStats` reports `instances` against `capacity`. `behaviorAt`/`continuityAt` project their schedule. `interrupt`/`resume` freeze/release logical time; `applyFlag` accepts resign, promote, die or a custom tag. `serialize()` returns replay save version `"1"`. Treat returned records as read-only. [CONTRACT.md](CONTRACT.md) links every query, result and save schema and states current limits.
 

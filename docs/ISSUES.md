@@ -8,7 +8,7 @@ Orchestrator coordination. Public inputs, outputs and error codes stay as [CONTR
 | Observation continuity | Edge handles end after one traversal. Outdoor fallback matches type/gender without the observed destination. | Simulation, Engine, Quests |
 | Person facts | Records expose home unit, family, employment, routines, age and traits. Agree floor/apartment, biography and who publishes them. | Simulation, Interior, Naming, Quests, Engine |
 | Post occupancy | Parcel crowd uses initial slots after death or resignation. Need post/shift IDs and a mapping to Interior placements. | Simulation, Interior, Engine, Quests |
-| Staffing feasibility | Worker count can sit below rota demand. `shiftMix` is accepted with no effect. Agree hours, filled capacity and shortages. | Simulation, Atlas, Interior, Engine, Quests |
+| Staffing feasibility | Hours follow the venue model, but the city's worker count can sit below rota demand, so a venue can miss one of its published roles at some hours. `shiftMix` is accepted with no effect. Agree filled capacity and shortages. | Simulation, Atlas, Interior, Engine, Quests |
 | Movement handoff | Routing can pick the nearest network node. Local intent picks the first matching role and has no floor path. | Atlas, Connections, Interior, Simulation, Engine, Quests |
 | Interruptions | Interrupt freezes a logical minute; resume reads the current schedule. Agree owners, nesting, delayed arrival and physical saves. | Simulation, Engine, Quests |
 | Transit staff and service | Service windows collapse to an outer span and first headway. Agree driver-to-vehicle duty and direction. | Connections, Simulation, Engine |

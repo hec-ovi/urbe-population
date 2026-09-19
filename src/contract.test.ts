@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CitySimulation, createSimulation, restoreSimulation, SimulationError,
   DEFAULT_TYPE_SET, FIXTURE_BLUEPRINT, FIXTURE_INTERIORS, FIXTURE_THEMED_TYPES,
-  type CrowdSlice, type Networks, type NPCInstance, type SimulationInput,
+  type CrowdSlice, type Networks, type NpcSupport, type NPCInstance, type SimulationInput,
 } from './index.js';
 
 /** Monday 09:00: the cafe is open and commuters are out. */
@@ -183,6 +183,59 @@ describe('crowds and casting', () => {
     expect(sim.getNPCVendor({ parcelId: 'p_police', timeMin: 180 }).job?.shift.kind).toBe('night');
     expect(sim.crowd(180, { kind: 'parcel', id: 'p_cafe' }).agents).toEqual([]);
     expect(errorCode(() => sim.getNPCVendor({ parcelId: 'p_cafe', timeMin: 180 }))).toBe('E_NO_MATCH');
+  });
+
+  it('keeps a service venue staffed into the evening and seats guests while it is open', () => {
+    const sim = make();
+    const evening = 21 * 60;
+    const slice = sim.crowd(evening, { kind: 'parcel', id: 'p_rest' });
+    const staff = slice.agents.filter((agent) => agent.activity === 'working');
+    const guests = slice.agents.filter((agent) => agent.activity === 'leisure');
+    expect(staff.length).toBeGreaterThan(0);
+    expect(guests.length).toBeGreaterThan(0);
+    expect(total(slice)).toBe(slice.agents.length);
+    expect(sim.getNPCVendor({ parcelId: 'p_rest', timeMin: evening }).job?.shift.kind).toBe('evening');
+    const guest = sim.instantiate({ crowdId: guests[0]!.crowdId, timeMin: evening });
+    expect(guest).toMatchObject({ type: guests[0]!.type, gender: guests[0]!.gender });
+    expect(sim.crowd(4 * 60, { kind: 'parcel', id: 'p_rest' }).agents).toEqual([]);
+  });
+
+  it('leaves an office venue to its watch outside office hours', () => {
+    const sim = make();
+    const evening = 21 * 60;
+    expect(sim.crowd(11 * 60, { kind: 'parcel', id: 'p_office' }).agents.length).toBeGreaterThan(1);
+    const night = sim.crowd(evening, { kind: 'parcel', id: 'p_office' }).agents;
+    expect(night.length).toBe(1);
+    const guard = sim.instantiate({ crowdId: night[0]!.crowdId, timeMin: evening });
+    expect(guard.job).toMatchObject({ parcelId: 'p_office', role: 'security' });
+    expect(sim.getNPCVendor({ parcelId: 'p_office', timeMin: evening }).npcId).toBe(guard.npcId);
+    expect(sim.getNPCVendor({ parcelId: 'p_office', timeMin: 10 * 60 }).job?.role).toBe('office_worker');
+  });
+
+  it('staffs a venue with the roles Interior publishes plus its own counter service', () => {
+    const at = 21 * 60 + 4;
+    const furnish = (buildingId: string, roles: NpcSupport['roles']): NpcSupport =>
+      ({ ...FIXTURE_INTERIORS.p_cafe!, buildingId, roles });
+    const rolesOnDuty = (sim: CitySimulation, parcelId: string): Set<string | undefined> =>
+      new Set(sim.crowd(at, { kind: 'parcel', id: parcelId }).agents
+        .filter((agent) => agent.activity === 'working')
+        .map((agent) => sim.instantiate({ crowdId: agent.crowdId, timeMin: at }).job?.role));
+
+    const cleaned = make({ interiors: { ...FIXTURE_INTERIORS, p_rest: furnish('p_rest', [
+      { id: 'r_clean', role: 'cleaner', floor: 0, homeAnchor: 'a_counter', count: [1, 1] },
+      { id: 'r_guest', role: 'guest', floor: 0, homeAnchor: 'a_seat', count: [8, 8] },
+    ]) } });
+    expect(rolesOnDuty(cleaned, 'p_rest')).toEqual(new Set(['waiter', 'cleaner']));
+    expect(cleaned.getNPCVendor({ parcelId: 'p_rest', timeMin: at }).job?.role).toBe('waiter');
+    expect(errorCode(() => cleaned.getNPCVendor({ parcelId: 'p_rest', role: 'guest', timeMin: at }))).toBe('E_NO_MATCH');
+
+    const served = make({ interiors: { ...FIXTURE_INTERIORS, p_corpo: furnish('p_corpo', [
+      { id: 'r_vendor', role: 'vendor', floor: 0, homeAnchor: 'a_counter', count: [1, 1] },
+      { id: 'r_reception', role: 'receptionist', floor: 0, homeAnchor: 'a_counter', count: [1, 1] },
+    ]) } });
+    const server = served.getNPCVendor({ parcelId: 'p_corpo', role: 'vendor', timeMin: at });
+    expect(served.behaviorAt(server.npcId, at)).toMatchObject({ activity: 'working', place: { kind: 'parcel', id: 'p_corpo' } });
+    expect(rolesOnDuty(served, 'p_corpo')).toEqual(new Set(['vendor', 'receptionist']));
   });
 
   it('publishes station and route employment with supplied and fallback transit inputs', () => {

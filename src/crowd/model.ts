@@ -7,6 +7,7 @@ import { dist2, pointAlong } from '../world/geo.js';
 import { EdgeGrid } from './edge-grid.js';
 import { parcelHandle, parseHandle, stationHandle, tripHandle } from './handles.js';
 import { MinuteMemo } from './minute-memo.js';
+import { PatronModel } from './patrons.js';
 import { TripSchedule, type Trip } from './trips.js';
 import {
   COMMUTE_WEEKDAY,
@@ -74,6 +75,11 @@ export class CrowdModel {
   /** City-wide pools that move to where the pull is, not where they sleep. */
   private readonly cityResidentTypes: Record<string, number> = {};
   private readonly cityStreetTypes: Record<string, number> = {};
+  /** Guests inside the city's venues. */
+  private readonly patrons: PatronModel;
+  /** Resident types a guest is cast from, with their city-wide weights. */
+  private readonly guestTypes: string[] = [];
+  private readonly guestWeights: number[] = [];
 
   constructor(
     private readonly seed: string | number,
@@ -132,6 +138,18 @@ export class CrowdModel {
       addAll(this.cityStreetTypes, streetTypes);
     }
     for (const base of this.districts.values()) base.pullShare = cityPull > 0 ? base.edgeWeightTotal / cityPull : 0;
+    for (const [type, count] of Object.entries(this.cityResidentTypes)) {
+      this.guestTypes.push(type);
+      this.guestWeights.push(count);
+    }
+    if (this.guestTypes.length === 0 && typeSet.types.length > 0) {
+      this.guestTypes.push(typeSet.types[0]!.type);
+      this.guestWeights.push(1);
+    }
+    this.patrons = new PatronModel(seed, world, {
+      type: (r) => this.guestTypes[r.weighted(this.guestWeights)]!,
+      gender: (r) => this.genders.draw(r),
+    });
     for (const wp of world.workplaces) {
       const base = this.districts.get(wp.districtId);
       if (!base) continue;
@@ -173,7 +191,8 @@ export class CrowdModel {
       case 'parcel': {
         const wp = this.world.workplacesByParcel.get(id);
         if (!wp && !this.world.parcelsById.has(id)) throw new SimulationError('E_UNKNOWN_ID', `no parcel ${id}`);
-        return this.slice(timeMin, scope, wp ? this.postAgents(wp, timeMin) : [], maxAgents);
+        const staff = wp ? this.postAgents(wp, timeMin) : [];
+        return this.slice(timeMin, scope, [...staff, ...this.patrons.agents(id, timeMin)], maxAgents);
       }
     }
   }
@@ -194,6 +213,7 @@ export class CrowdModel {
       const trip = this.stopTrips.at(h.slot, h.trip, timeMin, (start) => this.stopCountAt(h.id, start));
       return trip ? this.stopAgent(h.id, trip) : undefined;
     }
+    if (h.kind === 'patron') return this.patrons.agentAt(h.id, h.slot, h.trip, timeMin);
     const wp = h.kind === 'parcel' ? this.world.workplacesByParcel.get(h.id) : this.world.workplacesByStop.get(h.id);
     if (!wp || h.slot >= wp.staffing.slotCount) return undefined;
     return this.postAgent(wp, h.slot, timeMin);
@@ -346,7 +366,7 @@ export class CrowdModel {
     };
   }
 
-  /** Every post of a workplace that is filled and on shift now. */
+  /** Every post of a workplace that is filled and on shift now, guests aside. */
   private postAgents(wp: Workplace, timeMin: number): CrowdAgent[] {
     const agents: CrowdAgent[] = [];
     for (let local = 0; local < wp.staffing.slotCount; local++) {

@@ -6,6 +6,7 @@
 
 import type { ParcelType, WealthTier } from '../schemas/blueprint.js';
 import type { SimulationParams } from '../schemas/params.js';
+import type { VenueModel } from './venues.js';
 
 export interface ResolvedParams {
   occupancyRate: number;
@@ -94,6 +95,8 @@ export const AREA_PER_WORKER: Partial<Record<ParcelType, number>> = {
 };
 
 export interface OpeningProfile {
+  /** What kind of place this is, which decides how its rota is shaped. */
+  venue: VenueModel;
   /** Minute of day the rota starts; close < open spans midnight. */
   open: number;
   /** Minute of day the place closes. Equal to open when allDay. */
@@ -124,24 +127,25 @@ export const MAX_SHIFT_MIN = 8 * H;
 export const DESK_SHIFT_MIN = 9 * H;
 
 /**
- * Opening hours and staffing model by workplace type. 24/7 types run the
- * classic 06-14-22 three-wave rota plus security; service types tile their
- * open span with waves so a customer always meets staff; desk types put
- * everyone on one day shift.
+ * Opening hours and staffing model by workplace type. Round-the-clock types
+ * run the classic 06-14-22 three-wave rota plus security; service types serve
+ * guests into the evening and tile their open span with waves, so every post
+ * is manned at every hour they are open; office types put everyone on one day
+ * shift and leave a watch on the closed building.
  */
 export const OPENING_BY_TYPE: Partial<Record<ParcelType, OpeningProfile>> = {
-  hotel: { open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
-  hospital: { open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
-  police: { open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
-  military: { open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
-  factory: { open: 6 * H, close: 22 * H, allDay: false, days: SIX_DAYS, model: 'rota', nightOnlyChance: 0 },
-  offices: { open: 8 * H, close: 19 * H, allDay: false, days: WEEKDAYS, model: 'desk', nightOnlyChance: 0 },
-  corpo: { open: 7 * H, close: 21 * H, allDay: false, days: WEEKDAYS, model: 'desk', nightOnlyChance: 0 },
-  clinic: { open: 8 * H, close: 18 * H, allDay: false, days: SIX_DAYS, model: 'rota', nightOnlyChance: 0 },
-  commerce: { open: 9 * H, close: 19 * H, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
-  mall: { open: 10 * H, close: 21 * H, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
-  restaurant: { open: 11 * H, close: 24 * H - 1, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0.25 },
-  coffee_shop: { open: 6 * H, close: 18 * H, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
+  hotel: { venue: 'service', open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
+  hospital: { venue: 'round_clock', open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
+  police: { venue: 'round_clock', open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
+  military: { venue: 'round_clock', open: 6 * H, close: 6 * H, allDay: true, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
+  factory: { venue: 'industrial', open: 6 * H, close: 22 * H, allDay: false, days: SIX_DAYS, model: 'rota', nightOnlyChance: 0 },
+  offices: { venue: 'office', open: 8 * H, close: 19 * H, allDay: false, days: WEEKDAYS, model: 'desk', nightOnlyChance: 0 },
+  corpo: { venue: 'office', open: 7 * H, close: 21 * H, allDay: false, days: WEEKDAYS, model: 'desk', nightOnlyChance: 0 },
+  clinic: { venue: 'office', open: 8 * H, close: 18 * H, allDay: false, days: SIX_DAYS, model: 'rota', nightOnlyChance: 0 },
+  commerce: { venue: 'service', open: 9 * H, close: 19 * H, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
+  mall: { venue: 'service', open: 10 * H, close: 21 * H, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
+  restaurant: { venue: 'service', open: 11 * H, close: 24 * H, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0.25 },
+  coffee_shop: { venue: 'service', open: 6 * H, close: 22 * H, allDay: false, days: ALL_DAYS, model: 'rota', nightOnlyChance: 0 },
 };
 
 /**

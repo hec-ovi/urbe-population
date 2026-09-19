@@ -8,8 +8,8 @@
 import { Permutation } from '../core/feistel.js';
 import { lastAtMost } from '../core/search.js';
 import { rand } from '../core/rng.js';
-import { chosenRoleCounts, isSecuritySlot, postOfSlot, shiftForSlot } from './jobs.js';
-import { admitsRole, DERIVED_ROLE, postCandidates } from './role-types.js';
+import { roleOfSlot, shiftForSlot } from './jobs.js';
+import { admitsRole, postCandidates } from './role-types.js';
 import { SlotOrder } from './slots.js';
 import type { ResolvedParams } from './defaults.js';
 import type { Demographics } from './demographics.js';
@@ -72,25 +72,9 @@ export class AssignmentModel {
     return this.employedPerm.inverse(rank);
   }
 
-  /**
-   * The role a slot works: its post, named by the transit rota where the
-   * workplace has one, else by the interior's role table, else derived from
-   * what the building is.
-   */
+  /** The role a slot works: the post it mans in its rota. */
   roleOfSlot(workplace: Workplace, localSlot: number): string {
-    const post = postOfSlot(workplace.staffing, localSlot);
-    if (workplace.postRoles) return workplace.postRoles[post] ?? workplace.postRoles[0]!;
-    const support = this.world.interiors.get(workplace.place.id);
-    if (support) {
-      const counts = chosenRoleCounts(this.seed, workplace.place.id, support);
-      let cursor = post;
-      for (let i = 0; i < support.roles.length; i++) {
-        if (cursor < counts[i]!) return support.roles[i]!.role;
-        cursor -= counts[i]!;
-      }
-    }
-    if (isSecuritySlot(workplace.staffing, localSlot)) return 'security';
-    return (workplace.parcelType ? DERIVED_ROLE[workplace.parcelType] : undefined) ?? 'worker';
+    return roleOfSlot(workplace.staffing, localSlot);
   }
 
   typeDef(type: string): NPCTypeDef | undefined {
@@ -113,22 +97,10 @@ export class AssignmentModel {
     return candidates[r.weighted(candidates.map((t) => t.weight))]!;
   }
 
-  /** The distinct roles a workplace's rota fills, transit rota and interior role table first. */
+  /** The distinct roles a workplace's rota fills. */
   rolesOfWorkplace(workplace: Workplace): string[] {
-    if (workplace.postRoles) return [...new Set(workplace.postRoles)];
-    const support = this.world.interiors.get(workplace.place.id);
-    const roles = new Set<string>();
-    if (support) {
-      const counts = chosenRoleCounts(this.seed, workplace.place.id, support);
-      support.roles.forEach((slot, i) => {
-        if (counts[i]! > 0) roles.add(slot.role);
-      });
-    }
-    if (roles.size === 0) {
-      roles.add((workplace.parcelType ? DERIVED_ROLE[workplace.parcelType] : undefined) ?? 'worker');
-      if (workplace.staffing.securityPosts > 0) roles.add('security');
-    }
-    return [...roles];
+    const { open, watch } = workplace.staffing;
+    return [...new Set([...open.postRoles, ...(watch?.postRoles ?? [])])];
   }
 
   /** Whether the typed set holds a category that admits this role. */
