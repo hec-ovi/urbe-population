@@ -192,7 +192,7 @@ export class CrowdModel {
         const wp = this.world.workplacesByParcel.get(id);
         if (!wp && !this.world.parcelsById.has(id)) throw new SimulationError('E_UNKNOWN_ID', `no parcel ${id}`);
         const staff = wp ? this.postAgents(wp, timeMin) : [];
-        return this.slice(timeMin, scope, [...staff, ...this.patrons.agents(id, timeMin)], maxAgents);
+        return this.slice(timeMin, scope, [...staff, ...this.patrons.agents(id, timeMin).map((agent) => this.identifyBound(agent))], maxAgents);
       }
     }
   }
@@ -213,7 +213,10 @@ export class CrowdModel {
       const trip = this.stopTrips.at(h.slot, h.trip, timeMin, (start) => this.stopCountAt(h.id, start));
       return trip ? this.stopAgent(h.id, trip) : undefined;
     }
-    if (h.kind === 'patron') return this.patrons.agentAt(h.id, h.slot, h.trip, timeMin);
+    if (h.kind === 'patron') {
+      const agent = this.patrons.agentAt(h.id, h.slot, h.trip, timeMin);
+      return agent && this.identifyBound(agent);
+    }
     const wp = h.kind === 'parcel' ? this.world.workplacesByParcel.get(h.id) : this.world.workplacesByStop.get(h.id);
     if (!wp || h.slot >= wp.staffing.slotCount) return undefined;
     return this.postAgent(wp, h.slot, timeMin);
@@ -297,7 +300,7 @@ export class CrowdModel {
     const gender = this.genders.draw(r);
     const direction = r.next() < 0.5 ? 1 : -1;
     const walked = (timeMin - trip.startMin) / this.schedule(edge).period;
-    return {
+    return this.identifyBound({
       crowdId,
       trip: span(trip),
       type: g.type,
@@ -307,7 +310,7 @@ export class CrowdModel {
       place: { kind: 'edge', id: edge.id },
       progress: direction === 1 ? walked : 1 - walked,
       direction,
-    };
+    });
   }
 
   /** Deterministic sample across edges, proportional to their trips in flight. */
@@ -353,7 +356,7 @@ export class CrowdModel {
     const r = rand(this.seed, 'agent', crowdId);
     const groups = this.stopGroupsAt(stopId, trip.startMin);
     const g = groups[r.weighted(groups.map((x) => x.count))]!;
-    return {
+    return this.identifyBound({
       crowdId,
       trip: span(trip),
       type: g.type,
@@ -363,7 +366,7 @@ export class CrowdModel {
       place: { kind: 'stop', id: stopId },
       progress: 0,
       direction: 1,
-    };
+    });
   }
 
   /** Every post of a workplace that is filled and on shift now, guests aside. */
@@ -384,17 +387,26 @@ export class CrowdModel {
     const shift = shiftSpanAt(this.assignment.jobOfSlot(globalSlot).shift, timeMin);
     if (!shift) return undefined;
     const crowdId = wp.place.kind === 'parcel' ? parcelHandle(wp.place.id, local) : stationHandle(wp.place.id, local);
+    const npcId = adultId(adultIdx);
+    const instance = this.registry.instances.get(npcId);
     return {
       crowdId,
+      ...(instance ? { npcId } : {}),
       trip: { startMin: shift.startMin, endMin: shift.endMin - 1 },
       type: this.assignment.typeOfAdult(adultIdx).type,
-      gender: this.genders.of(adultId(adultIdx)),
-      appearanceSeed: this.registry.instances.get(adultId(adultIdx))?.appearanceSeed ?? this.appearanceSeed(adultId(adultIdx)),
+      gender: this.genders.of(npcId),
+      appearanceSeed: instance?.appearanceSeed ?? this.appearanceSeed(npcId),
       activity: 'working',
       place: wp.place,
       progress: 0,
       direction: 1,
     };
+  }
+
+  /** Anonymous trips gain an identity only after an explicit establishment event bound their handle. */
+  private identifyBound(agent: CrowdAgent): CrowdAgent {
+    const npcId = this.registry.crowdBindings.get(agent.crowdId);
+    return npcId && this.registry.instances.has(npcId) ? { ...agent, npcId } : agent;
   }
 
   private appearanceSeed(identityId: string): number {

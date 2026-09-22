@@ -48,6 +48,8 @@ export interface CrowdGroup {
 export interface CrowdAgent {
   /** Handle naming this agent's trip: the same id at every minute of the trip, instantiable throughout, bound to its person once instantiated. */
   crowdId: string;
+  /** Established identity behind this candidate, when known. Reading crowd never establishes or binds a person. */
+  npcId?: string;
   /** Whole minutes the handle is alive, startMin to endMin inclusive. */
   trip: TripSpan;
   type: string;

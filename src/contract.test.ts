@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CitySimulation, createSimulation, restoreSimulation, SimulationError,
   DEFAULT_TYPE_SET, FIXTURE_BLUEPRINT, FIXTURE_INTERIORS, FIXTURE_THEMED_TYPES,
-  type CrowdSlice, type Networks, type NpcSupport, type NPCInstance, type SimulationInput,
+  type CrowdScope, type CrowdSlice, type Networks, type NpcSupport, type NPCInstance, type SimulationInput,
 } from './index.js';
 
 /** Monday 09:00: the cafe is open and commuters are out. */
@@ -172,6 +172,69 @@ describe('crowds and casting', () => {
     expect(sim.getNPC(person.npcId)).toBe(person);
     expect(sim.instantiate({ crowdId: agent!.crowdId, timeMin: agent!.trip.endMin + 1 })).toBe(person);
     expect(errorCode(() => sim.instantiate({ crowdId: other!.crowdId, timeMin: other!.trip.endMin + 1 }))).toBe('E_STALE_HANDLE');
+  });
+
+  it.each(['vendor', 'reservation', 'npc id', 'station vendor'] as const)(
+    'projects an established %s identity before its first crowd sample without establishing more people',
+    (entry) => {
+      const sim = make();
+      const template = vendor(make());
+      const person = entry === 'vendor' ? vendor(sim)
+        : entry === 'station vendor' ? sim.getNPCVendor({ role: 'platform_staff', timeMin: TIME })
+        : entry === 'npc id' ? sim.instantiate({ npcId: template.npcId })
+        : sim.reserveNPC({ name: { given: 'Wren', family: 'Vale' }, type: template.type,
+          gender: template.gender, jobParcelId: 'p_cafe', role: 'barista' });
+      const work = person.routine.find((step) => step.activity === 'working')!;
+      const timeMin = work.days[0]! * 1440 + work.startMin + 1;
+      const scope: CrowdScope = person.job
+        ? { kind: 'parcel', id: person.job.parcelId }
+        : { kind: 'stop', id: person.transitJob!.place.id };
+      const save = sim.serialize();
+      expect(save.events.every((event) => event.k !== 'crowd')).toBe(true);
+      const sample = sim.crowd(timeMin, scope);
+      expect(sample.agents.filter((agent) => agent.npcId === person.npcId)).toEqual([
+        expect.objectContaining({ activity: 'working', appearanceSeed: person.appearanceSeed }),
+      ]);
+      expect(sample.agents.every((agent) => agent.npcId === undefined || agent.npcId === person.npcId)).toBe(true);
+      expect(sim.populationStats().instances).toBe(1);
+      expect(sim.serialize()).toEqual(save);
+      const restored = restoreSimulation(FIXTURE, save);
+      expect(restored.crowd(timeMin, scope)).toEqual(sample);
+      expect(restored.populationStats().instances).toBe(1);
+      expect(restored.serialize()).toEqual(save);
+    },
+  );
+
+  it.each([
+    { kind: 'edge' as const, id: 'e1', timeMin: 720 },
+    { kind: 'stop' as const, id: 'b1', timeMin: 480 },
+    { kind: 'parcel' as const, id: 'p_rest', timeMin: 21 * 60 },
+  ])('projects only bound anonymous $kind identities and replays them without mutating crowd reads', ({ kind, id, timeMin }) => {
+    const input = { ...FIXTURE, params: { streetDensity: 20 } };
+    const sim = createSimulation(input);
+    const scope = { kind, id };
+    const untouchedSave = sim.serialize();
+    const before = sim.crowd(timeMin, scope);
+    expect(before.agents.every((agent) => !('npcId' in agent))).toBe(true);
+    expect(sim.populationStats().instances).toBe(0);
+    expect(sim.serialize()).toEqual(untouchedSave);
+    const anonymous = before.agents.find((agent) => agent.activity !== 'working')!;
+    const person = sim.instantiate({ crowdId: anonymous.crowdId, timeMin });
+    const save = sim.serialize();
+    const sample = sim.crowd(timeMin, scope);
+    expect(sample.agents.find((agent) => agent.crowdId === anonymous.crowdId)).toEqual({ ...anonymous, npcId: person.npcId });
+    expect(sample.groups).toEqual(before.groups);
+    expect(sample.agents.length).toBe(before.agents.length);
+    expect(sample.agents.filter((agent) => agent.activity !== 'working' && agent.crowdId !== anonymous.crowdId)
+      .every((agent) => !('npcId' in agent))).toBe(true);
+    const later = sim.crowd(anonymous.trip.endMin + 1, scope);
+    expect(later.agents.filter((agent) => agent.activity !== 'working').every((agent) => !('npcId' in agent))).toBe(true);
+    expect(sim.populationStats().instances).toBe(1);
+    expect(sim.serialize()).toEqual(save);
+    const restored = restoreSimulation(input, save);
+    expect(restored.crowd(timeMin, scope)).toEqual(sample);
+    expect(restored.populationStats().instances).toBe(1);
+    expect(restored.serialize()).toEqual(save);
   });
 
   it('allocates distinct staff through weekday, weekend and night shifts and refuses a closed cafe', () => {
