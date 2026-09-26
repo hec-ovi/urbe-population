@@ -16,5 +16,16 @@ export interface SimulationInput {
   params?: SimulationParams;
 }
 
-export type InstantiateHandle = { npcId: string } | { crowdId: string; timeMin: number } | VendorQuery;
+export type InstantiateHandle = { npcId: string } | CrowdInstantiate | VendorQuery;
+
+export interface CrowdInstantiate {
+  crowdId: string;
+  timeMin: number;
+  /**
+   * The body seed the host already draws for this handle, an integer from 0
+   * to 4294967295. A person this call newly establishes takes it; a bound
+   * handle or an established person keeps its own seed.
+   */
+  appearanceSeed?: number;
+}
 

@@ -1,5 +1,5 @@
 export { createSimulation, restoreSimulation, CitySimulation } from './api/simulation.js';
-export type { SimulationInput, InstantiateHandle } from './api/simulation.js';
+export type { SimulationInput, InstantiateHandle, CrowdInstantiate } from './schemas/input.js';
 export type { SimulationSave } from './instancing/registry.js';
 export { SimulationError } from './schemas/errors.js';
 export type { SimulationErrorCode } from './schemas/errors.js';

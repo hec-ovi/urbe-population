@@ -7,7 +7,7 @@ import { SimulationError } from '../schemas/errors.js';
 import type { FlagOp, NPCInstance, ReservedSpec, VendorQuery } from '../schemas/npc.js';
 
 export type SaveEvent =
-  | { k: 'crowd'; crowdId: string; timeMin: number }
+  | { k: 'crowd'; crowdId: string; timeMin: number; appearanceSeed?: number }
   | { k: 'vendor'; query: VendorQuery }
   | { k: 'npc'; npcId: string }
   | { k: 'reserve'; spec: ReservedSpec }

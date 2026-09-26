@@ -59,30 +59,28 @@ export class Instantiator {
    * The person behind a crowd handle: the one already bound to it at any time,
    * else the agent alive now (determinate for a post handle at a building or a
    * station, an alibi of the same type and gender otherwise); no agent means
-   * the trip is over.
+   * the trip is over. A person built here wears `appearanceSeed` when given,
+   * else the agent's.
    */
-  fromCrowd(crowdId: string, timeMin: number, agent: CrowdAgent | undefined): NPCInstance {
+  fromCrowd(crowdId: string, timeMin: number, agent: CrowdAgent | undefined, appearanceSeed?: number): NPCInstance {
     const bound = this.registry.crowdBindings.get(crowdId);
     if (bound) return this.registry.instances.get(bound)!;
     if (!agent) throw new SimulationError('E_STALE_HANDLE', `crowd handle ${crowdId} names no trip at ${timeMin}`);
+    appearanceSeed ??= agent.appearanceSeed;
     const h = parseHandle(crowdId);
     if (h?.kind === 'parcel' || h?.kind === 'station') {
       const wp = (h.kind === 'parcel' ? this.world.workplacesByParcel : this.world.workplacesByStop).get(h.id)!;
-      const adultIdx = this.assignment.adultOfSlot(wp.slotOffset + h.slot)!;
-      const npcId = adultId(adultIdx);
-      const instance = this.registry.instances.get(npcId) ?? this.buildAdult(adultIdx, undefined, agent.appearanceSeed);
-      this.registry.crowdBindings.set(crowdId, npcId);
-      return instance;
+      return this.bind(crowdId, this.assignment.adultOfSlot(wp.slotOffset + h.slot)!, appearanceSeed);
     }
     for (let k = 0; k < ALIBI_PROBES; k++) {
       const adultIdx = rand(this.seed, 'alibi', crowdId, k).int(this.demo.totalAdults);
-      if (this.freeMatch(adultIdx, agent) && this.plausiblyOutdoors(adultIdx, timeMin)) return this.bind(crowdId, adultIdx, agent.appearanceSeed);
+      if (this.freeMatch(adultIdx, agent) && this.plausiblyOutdoors(adultIdx, timeMin)) return this.bind(crowdId, adultIdx, appearanceSeed);
     }
     // A seeded walk reaches every free person of the type and gender, so a rare type is found, not gambled on.
     const start = rand(this.seed, 'alibi-walk', crowdId).int(this.demo.totalAdults);
     for (let k = 0; k < this.demo.totalAdults; k++) {
       const adultIdx = (start + k) % this.demo.totalAdults;
-      if (this.freeMatch(adultIdx, agent)) return this.bind(crowdId, adultIdx, agent.appearanceSeed);
+      if (this.freeMatch(adultIdx, agent)) return this.bind(crowdId, adultIdx, appearanceSeed);
     }
     throw new SimulationError('E_NO_MATCH', `no free NPC matches crowd agent ${crowdId}`);
   }
@@ -95,9 +93,11 @@ export class Instantiator {
     );
   }
 
+  /** Binds the handle to the adult; an established adult keeps its own identity and seed. */
   private bind(crowdId: string, adultIdx: number, appearanceSeed: number): NPCInstance {
-    const instance = this.buildAdult(adultIdx, undefined, appearanceSeed);
-    this.registry.crowdBindings.set(crowdId, instance.npcId);
+    const npcId = adultId(adultIdx);
+    const instance = this.registry.instances.get(npcId) ?? this.buildAdult(adultIdx, undefined, appearanceSeed);
+    this.registry.crowdBindings.set(crowdId, npcId);
     return instance;
   }
 

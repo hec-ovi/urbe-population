@@ -55,7 +55,7 @@ export interface CrowdAgent {
   type: string;
   /** The gender the crowdId resolves to on instantiation. */
   gender: Gender;
-  /** Stable body seed retained if this handle becomes a named NPC. */
+  /** Body seed: the established person's when npcId is present, else the handle's own. */
   appearanceSeed: number;
   activity: Activity;
   place: PlaceRef;

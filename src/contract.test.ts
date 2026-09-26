@@ -174,6 +174,43 @@ describe('crowds and casting', () => {
     expect(errorCode(() => sim.instantiate({ crowdId: other!.crowdId, timeMin: other!.trip.endMin + 1 }))).toBe('E_STALE_HANDLE');
   });
 
+  it('establishes a person in the hinted look, leaves an established look alone and replays both', () => {
+    const sim = make();
+    const edge: CrowdScope = { kind: 'edge', id: 'e1' };
+    const agent = sim.crowd(720, edge).agents[0]!;
+    const handle = { crowdId: agent.crowdId, timeMin: 720 };
+    const hint = (agent.appearanceSeed + 1) % 2 ** 32;
+    for (const appearanceSeed of [-1, 1.5, 2 ** 32]) {
+      expect(errorCode(() => sim.instantiate({ ...handle, appearanceSeed }))).toBe('E_INVALID_INPUT');
+    }
+    expect(sim.serialize().events).toEqual([]);
+
+    const person = sim.instantiate({ ...handle, appearanceSeed: hint });
+    expect(person).toEqual({ ...make().instantiate(handle), appearanceSeed: hint });
+    expect(sim.instantiate({ ...handle, appearanceSeed: agent.appearanceSeed })).toBe(person);
+    expect(person.appearanceSeed).toBe(hint);
+    const sample = sim.crowd(720, edge);
+    expect(sample.agents[0]).toEqual({ ...agent, npcId: person.npcId, appearanceSeed: hint });
+
+    const worker = vendor(sim);
+    const own = worker.appearanceSeed;
+    const post = sim.crowd(TIME, { kind: 'parcel', id: 'p_cafe' }).agents.find((a) => a.npcId === worker.npcId)!;
+    expect(sim.instantiate({ crowdId: post.crowdId, timeMin: TIME, appearanceSeed: (own + 1) % 2 ** 32 })).toBe(worker);
+    expect(worker.appearanceSeed).toBe(own);
+
+    const save = JSON.parse(JSON.stringify(sim.serialize()));
+    expect(save.events[0]).toEqual({ k: 'crowd', ...handle, appearanceSeed: hint });
+    const restored = restoreSimulation(FIXTURE, save);
+    expect(restored.findNPCs({})).toEqual(sim.findNPCs({}));
+    expect(restored.crowd(720, edge)).toEqual(sample);
+    expect(restored.serialize()).toEqual(save);
+    const invalid = { ...save, events: [{ ...save.events[0], appearanceSeed: -1 }] };
+    expect(errorCode(() => restoreSimulation(FIXTURE, invalid))).toBe('E_INVALID_INPUT');
+
+    const unhinted = restoreSimulation(FIXTURE, { version: '1', seed: String(FIXTURE.seed), events: [{ k: 'crowd', ...handle }] });
+    expect(unhinted.getNPC(person.npcId).appearanceSeed).toBe(agent.appearanceSeed);
+  });
+
   it.each(['vendor', 'reservation', 'npc id', 'station vendor'] as const)(
     'projects an established %s identity before its first crowd sample without establishing more people',
     (entry) => {

@@ -1,4 +1,4 @@
-# Simulation 0.10.1
+# Simulation 0.11.0
 
 Computes statistical crowds and persistent NPC identities, assignments and logical schedules during gameplay.
 
@@ -22,7 +22,7 @@ Synchronous TypeScript library, imported from `@urbe/simulation`. The host suppl
 | --- | --- | --- |
 | `populationStats()` | None | [PopulationStats](src/schemas/population.ts): initial residents, households, adult employment/type counts, district/tier totals, calibration factor, type gaps, and established instances against the capacity |
 | `crowd(timeMin, scope, opts?)` | [CrowdScope, CrowdOpts](src/schemas/crowd.ts) | [CrowdSlice](src/schemas/crowd.ts): group counts and render candidates |
-| `instantiate(handle)` | [InstantiateHandle](src/schemas/input.ts): crowd ID/time, NPC ID or vendor query | [NPCInstance](src/schemas/npc.ts) |
+| `instantiate(handle)` | [InstantiateHandle](src/schemas/input.ts): crowd ID/time with optional `appearanceSeed`, NPC ID or vendor query | [NPCInstance](src/schemas/npc.ts) |
 | `getNPC(npcId)` | Established ID | NPCInstance |
 | `getNPCVendor(query)` | [VendorQuery](src/schemas/npc.ts): time, optional parcel/type/role | On-duty allocated NPCInstance |
 | `reserveNPC(spec)` | [ReservedSpec](src/schemas/npc.ts): name/type, optional gender/home district/job parcel/role | Allocated NPCInstance with fixed name |
@@ -44,7 +44,8 @@ Returned records belong to the simulation; callers must not mutate them. Replay 
 - Calibration searches for residents within 3% of a positive blueprint population. Coarse housing and the bounded factor search can miss that target. Zero means use the housing estimate. `unemployed` counts all adults without allocated jobs, including those outside the labor force.
 - City/district groups describe street presence; agents sample streets. Edge/stop/parcel groups tally their candidates; a parcel's candidates are its on-duty posts and the guests inside it. `maxAgents` defaults to 64; zero returns counts only. Radius returns all street/stop candidates in its circle and ignores the cap; it excludes building interiors.
 - An anonymous edge/stop/guest handle names one trip with inclusive whole-minute bounds. Edge trips do not continue across edges. Once established, its handle resolves to the same person after the trip. Post handles identify allocated workers. Appearance persists with the identity.
-- Crowd candidates carry optional `npcId` only when their identity is already established: a bound anonymous handle, or an allocated worker established through any entry point. Hosts can use it to suppress a crowd body already represented by a named NPC. Crowd reads never establish people or bind handles; counts remain the statistical baseline.
+- A crowd instantiate may carry the `appearanceSeed` the host already draws for that body, for example after handing the body a later trip. A person the call newly establishes takes it; a bound handle or an established person keeps its own seed. Type and gender always come from the handle. The save records the seed, so replay reproduces the look; a crowd event without one uses the handle's seed.
+- Crowd candidates carry optional `npcId` only when their identity is already established: a bound anonymous handle, or an allocated worker established through any entry point. Such a candidate reports that person's `appearanceSeed`. Hosts can use `npcId` to suppress a crowd body already represented by a named NPC. Crowd reads never establish people or bind handles; counts remain the statistical baseline.
 - Household and initial job assignments use unique statistical slots. Family references can be instantiated. Themed `type` and Interior `job.role` are separate vocabularies. Building employment is `job`; station/route employment is `transitJob`.
 - Shifts follow the venue: food, drink, shops and hotels serve into the evening and the night, offices and clinics keep office hours plus one watch post, staffed first, through the hours they are closed, police and hospitals run round the clock. A building whose Interior publishes counter service (vendor, waiter, cook, barista) is a service venue whatever the blueprint types it.
 - A venue's posts are the staff Interior publishes for it plus its own counter service, sized by its seats, and every post is in the rota of each wave the venue opens, so those roles are on duty at every open hour. Published `guest` and `resident` roles hold guests, not jobs: guests fill a venue in proportion to its seats (Interior's seats and guest slots, else its floor area) on a seated or counter occupancy curve, and carry instantiable handles. A vendor query answers for the minute it is asked.
@@ -62,7 +63,7 @@ Closed domain set: [SimulationError](src/schemas/errors.ts), with `code`, `messa
 
 | Code | Meaning |
 | --- | --- |
-| `E_INVALID_INPUT` | Failed construction, radius or save validation, including seed mismatch |
+| `E_INVALID_INPUT` | Failed construction, radius, appearance seed or save validation, including seed mismatch |
 | `E_UNKNOWN_ID` | Unknown/unavailable NPC, district, walking edge, stop or workplace parcel |
 | `E_STALE_HANDLE` | Unbound crowd handle has no trip at the supplied time |
 | `E_NO_MATCH` | No queried worker, probed reservation, free matching person or authoritative commute route |

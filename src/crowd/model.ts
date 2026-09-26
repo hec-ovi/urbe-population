@@ -403,10 +403,10 @@ export class CrowdModel {
     };
   }
 
-  /** Anonymous trips gain an identity only after an explicit establishment event bound their handle. */
+  /** Anonymous trips gain an identity only after an explicit establishment event bound their handle; then they wear that person's seed. */
   private identifyBound(agent: CrowdAgent): CrowdAgent {
     const npcId = this.registry.crowdBindings.get(agent.crowdId);
-    return npcId && this.registry.instances.has(npcId) ? { ...agent, npcId } : agent;
+    return npcId ? { ...agent, npcId, appearanceSeed: this.registry.instances.get(npcId)!.appearanceSeed } : agent;
   }
 
   private appearanceSeed(identityId: string): number {

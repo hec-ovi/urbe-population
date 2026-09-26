@@ -1,4 +1,4 @@
-import { fail } from './invalid-input.js';
+import { checkAppearanceSeed, fail } from './invalid-input.js';
 import type { SaveEvent, SimulationSave } from '../instancing/registry.js';
 
 /** Runtime guard for JSON-loaded saves. The TypeScript type is not a trust boundary. */
@@ -15,9 +15,10 @@ function validateEvent(event: Record<string, unknown>, index: number): asserts e
   const field = `save.events.${index}`;
   switch (event.k) {
     case 'crowd':
-      exactKeys(field, event, ['k', 'crowdId', 'timeMin']);
+      exactKeys(field, event, ['k', 'crowdId', 'timeMin'], ['appearanceSeed']);
       string(`${field}.crowdId`, event.crowdId);
       time(`${field}.timeMin`, event.timeMin);
+      if (event.appearanceSeed !== undefined) checkAppearanceSeed(`${field}.appearanceSeed`, event.appearanceSeed);
       return;
     case 'vendor': {
       exactKeys(field, event, ['k', 'query']);

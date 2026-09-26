@@ -5,6 +5,7 @@
 
 import { validateInput } from './validate.js';
 import { validateSave } from './validate-save.js';
+import { checkAppearanceSeed } from './invalid-input.js';
 import { WorldModel, type Workplace } from '../world/model.js';
 import { HousingStock } from '../population/housing.js';
 import { HouseholdLedger } from '../population/household.js';
@@ -36,8 +37,6 @@ import type {
   ReservedSpec,
   VendorQuery,
 } from '../schemas/npc.js';
-
-export type { SimulationInput, InstantiateHandle } from '../schemas/input.js';
 
 export class CitySimulation {
   private readonly params: ResolvedParams;
@@ -86,9 +85,10 @@ export class CitySimulation {
       return inst;
     }
     if ('crowdId' in handle) {
-      const agent = this.crowdLayer().agentAt(handle.crowdId, handle.timeMin);
-      const inst = this.instantiator.fromCrowd(handle.crowdId, handle.timeMin, agent);
-      this.registry.log({ k: 'crowd', crowdId: handle.crowdId, timeMin: handle.timeMin });
+      const { crowdId, timeMin, appearanceSeed } = handle;
+      if (appearanceSeed !== undefined) checkAppearanceSeed('handle.appearanceSeed', appearanceSeed);
+      const inst = this.instantiator.fromCrowd(crowdId, timeMin, this.crowdLayer().agentAt(crowdId, timeMin), appearanceSeed);
+      this.registry.log(appearanceSeed === undefined ? { k: 'crowd', crowdId, timeMin } : { k: 'crowd', crowdId, timeMin, appearanceSeed });
       return inst;
     }
     return this.getNPCVendor(handle);
@@ -202,7 +202,7 @@ export class CitySimulation {
     try {
       switch (e.k) {
         case 'crowd':
-          this.instantiate({ crowdId: e.crowdId, timeMin: e.timeMin });
+          this.instantiate(e);
           break;
         case 'vendor':
           this.getNPCVendor(e.query);
